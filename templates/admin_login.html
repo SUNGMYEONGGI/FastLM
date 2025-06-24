@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>관리자 로그인</h1>
+
+<form method="POST" class="login-form">
+    <div class="form-group">
+        <label for="password">암호:</label>
+        <input type="password" name="password" required>
+    </div>
+
+    <button type="submit" class="login-btn">로그인</button>
+</form>
+{% endblock %}

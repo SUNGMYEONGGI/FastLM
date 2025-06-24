@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- 탭 네비게이션 추가 -->
+<div class="notice-tabs">
+    <a href="{{ url_for('attendance_notice') }}" class="tab-item">출결 공지</a>
+    <a href="{{ url_for('satisfaction_notice') }}" class="tab-item">만족도 공지</a>
+    <a href="{{ url_for('thread_notice') }}" class="tab-item">운영 질문 스레드</a>
+    <a href="{{ url_for('manage_notice') }}" class="tab-item">공지 관리</a>
+    <a href="{{ url_for('notice_calendar') }}" class="tab-item active">공지 캘린더</a>
+</div>
+
+<!-- 헤더 컨테이너 추가 -->
+<div class="header-container">
+    <h1>공지 캘린더</h1>
+    <div class="legend-container">
+        <div class="legend-group">
+            <span class="legend-label">상태:</span>
+            <div class="legend-item">
+                <span class="legend-color status-예약됨"></span>
+                <span>예약됨</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color status-전송-완료"></span>
+                <span>전송 완료</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color status-전송-실패"></span>
+                <span>전송 실패</span>
+            </div>
+        </div>
+        <div class="legend-divider"></div>
+        <div class="legend-group">
+            <span class="legend-label">유형:</span>
+            <div class="legend-item">
+                <span class="legend-color notice-type-입실"></span>
+                <span>입실</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color notice-type-중간"></span>
+                <span>중간</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color notice-type-퇴실"></span>
+                <span>퇴실</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color notice-type-만족도"></span>
+                <span>만족도</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color notice-type-질문"></span>
+                <span>질문</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id='calendar'></div>
+
+<!-- FullCalendar 최신 버전 CDN -->
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js'></script>
+
+<style>
+    #calendar {
+        margin: 20px 0;
+        width: 100%;
+        min-height: 500px;
+    }
+
+    .fc {
+        width: 100%;
+    }
+
+    .fc-toolbar-title {
+        font-size: 1.5em !important;
+        font-weight: bold !important;
+    }
+
+    .fc-event {
+        cursor: pointer;
+        margin: 2px 0;
+        padding: 2px 5px;
+    }
+
+    /* 공지 상태별 스타일 */
+    .status-예약됨 {
+        background-color: #ffd700 !important;
+        border-color: #ffd700 !important;
+        color: #000 !important;
+    }
+
+    .status-전송-완료 {
+        background-color: #4CAF50 !important;
+        border-color: #4CAF50 !important;
+        color: white !important;
+    }
+
+    .status-전송-실패 {
+        background-color: #f44336 !important;
+        border-color: #f44336 !important;
+        color: white !important;
+    }
+
+    /* 공지 유형별 스타일 */
+    .notice-type-입실 { 
+        border-left: 5px solid #FF9800 !important;
+    }
+    .notice-type-중간 { 
+        border-left: 5px solid #2196F3 !important;
+    }
+    .notice-type-퇴실 { 
+        border-left: 5px solid #9C27B0 !important;
+    }
+    .notice-type-만족도 { 
+        border-left: 5px solid #4CAF50 !important;
+    }
+    .notice-type-질문 { 
+        border-left: 5px solid #E91E63 !important;
+    }
+
+
+    /* 버튼 스타일 */
+    .fc-button {
+        background-color: #FC0E3E !important;
+        border-color: #FC0E3E !important;
+    }
+
+    .fc-button:hover {
+        background-color: #ffffff !important;
+        color: #FC0E3E !important;
+        border: 1px solid #FC0E3E !important;
+    }
+
+    .fc-button-active {
+        background-color: #ffffff !important;
+        color: #FC0E3E !important;
+        border: 1px solid #FC0E3E !important;
+    }
+
+
+      /* 범례 컨테이너 스타일 수정 */
+      .legend-container {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin: 10px 0;
+        padding: 30px 15px;
+        background-color: #fff;
+        border-radius: 4px;
+    }
+
+    .legend-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .legend-label {
+        font-weight: bold;
+        color: #666;
+    }
+
+    .legend-divider {
+        width: 1px;
+        height: 20px;
+        background-color: #ddd;
+        margin: 0 5px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.9em;
+    }
+
+    .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+    }
+
+    /* 상태 색상 */
+    .legend-color.status-예약됨 {
+        background-color: #ffd700;
+    }
+
+    .legend-color.status-전송-완료 {
+        background-color: #4CAF50;
+    }
+
+    .legend-color.status-전송-실패 {
+        background-color: #f44336;
+    }
+
+    /* 유형 색상 */
+    .legend-color.notice-type-입실 {
+        border-left: 12px solid #FF9800;
+    }
+
+    .legend-color.notice-type-중간 {
+        border-left: 12px solid #2196F3;
+    }
+
+    .legend-color.notice-type-퇴실 {
+        border-left: 12px solid #9C27B0;
+    }
+
+    .legend-color.notice-type-만족도 {
+        border-left: 12px solid #4CAF50;
+    }
+
+    .legend-color.notice-type-질문 {
+        border-left: 12px solid #E91E63;
+    }
+
+    /* 헤더 컨테이너 스타일 추가 */
+    .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    /* 기존 legend-container 스타일 수정 */
+    .legend-container {
+        flex: 0 0 auto;  /* 크기 고정 */
+        margin: 0;       /* 기존 마진 제거 */
+    }
+
+    /* h1 스타일 수정 */
+    .header-container h1 {
+        margin: 0;       /* 기존 마진 제거 */
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'ko',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,dayGridWeek'
+        },
+        height: 'auto',
+        contentHeight: 'auto',
+        handleWindowResize: true,
+        events: [
+            {% for event in events %}
+            {
+                id: '{{ event.id }}',
+                title: '{{ event.title }}',
+                start: '{{ event.start }}',
+                className: [
+                    'status-{{ event.status.replace(" ", "-") }}',
+                    'notice-type-{{ event.title.split(" - ")[0] }}'
+                ],
+                allDay: false
+            },
+            {% endfor %}
+        ],
+        eventClick: function(info) {
+            const date = new Date(info.event.start);
+            const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+                .toISOString()
+                .split('T')[0];
+            const noticeId = info.event.id;
+            window.location.href = `/notices/manage?date=${localDate}&notice_id=${noticeId}`;
+        },
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }
+    });
+    calendar.render();
+    
+    window.addEventListener('resize', function() {
+        calendar.updateSize();
+    });
+});
+</script>
+{% endblock %} 

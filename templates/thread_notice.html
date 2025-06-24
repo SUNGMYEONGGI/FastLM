@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="notice-tabs">
+    <a href="{{ url_for('attendance_notice') }}" class="tab-item">출결 공지</a>
+    <a href="{{ url_for('satisfaction_notice') }}" class="tab-item">만족도 공지</a>
+    <a href="{{ url_for('thread_notice') }}" class="tab-item active">운영 질문 스레드</a>
+    <a href="{{ url_for('manage_notice') }}" class="tab-item">공지 관리</a>
+    <a href="{{ url_for('notice_calendar') }}" class="tab-item">공지 캘린더</a>
+</div>
+
+<h1>운영 질문 스레드 예약</h1>
+
+<form method="POST" class="workspace-form">
+    <div class="form-group">
+        <label for="reservation" style="display: block; width: 300%; max-width: 1000px;">
+            <span style="color: #FC0E3E;">*</span> 예약 날짜 (선택한 모든 날짜에 스레드가 생성됩니다):
+        </label>
+        <div class="date-input-wrapper">
+            <input type="text" 
+                   name="reservation" 
+                   id="thread-reservation" 
+                   class="datepicker" 
+                   required 
+                   readonly
+                   placeholder="날짜를 선택해주세요">
+        </div>
+    </div>
+
+    <button type="submit" class="reservation_submit-btn">예약하기</button>
+</form>
+
+<style>
+.form-text {
+    display: block;
+    margin-top: 5px;
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+.text-muted {
+    color: #6c757d !important;
+}
+
+label[for="reservation"] {
+    display: block;
+    width: 100%;
+    max-width: 400px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Flatpickr 설정
+    const datePicker = flatpickr("#thread-reservation", {
+        mode: "multiple",
+        dateFormat: "Y-m-d",
+        minDate: "today",
+        locale: "ko",
+        conjunction: ", ",
+        disable: [
+            function(date) {
+                return date.getDay() === 0 || date.getDay() === 6;
+            }
+        ]
+    });
+
+    // 폼 제출 처리
+    document.querySelector('form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const dates = datePicker.selectedDates;
+
+        // 날짜가 선택되지 않았을 경우 알림
+        if (dates.length === 0) {
+            alert('날짜를 선택해주세요.');
+            return;
+        }
+
+        // 각 선택된 날짜에 대해 요청 보내기
+        const promises = dates.map(date => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const formattedDate = `${year}-${month}-${day}`;
+
+            const formData = new FormData();
+            formData.append('reservation', formattedDate);
+
+            return fetch('/notices/thread', {
+                method: 'POST',
+                body: formData
+            });
+        });
+
+        Promise.all(promises)
+            .then(() => {
+                alert('모든 스레드가 성공적으로 예약되었습니다!');
+                window.location.reload();
+            })
+            .catch(error => {
+                alert('일부 스레드 예약에 실패했습니다.');
+                console.error('Error:', error);
+            });
+    });
+});
+</script>
+
+<!-- Flatpickr CSS와 JS 추가 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_red.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js"></script>
+{% endblock %}

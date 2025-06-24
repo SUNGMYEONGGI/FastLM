@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>스케줄러 작업 목록</h2>
+    
+    {% if jobs %}
+        <p>총 {{ jobs|length }}개의 예약된 작업이 있습니다.</p>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>작업 ID</th>
+                        <th>워크스페이스</th>
+                        <th>실행 예정 시간</th>
+                        <th>상태</th>
+                        <th>메시지</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td>{{ job.job_id }}</td>
+                        <td>{{ job.workspace }}</td>
+                        <td>{{ job.next_run }}</td>
+                        <td>{{ job.status }}</td>
+                        <td>{{ job.message }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p>예약된 작업이 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %} 

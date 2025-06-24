@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>'{{ username }}' 사용자의 워크스페이스 접근 권한</h2>
+    
+    <form id="workspaceAccessForm">
+        {% for workspace in workspaces %}
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" 
+                   name="workspaces[]" 
+                   value="{{ workspace[0] }}" 
+                   id="workspace{{ workspace[0] }}"
+                   {% if workspace[0] in user_workspaces %}checked{% endif %}>
+            <label class="form-check-label" for="workspace{{ workspace[0] }}">
+                {{ workspace[1] }}
+            </label>
+        </div>
+        {% endfor %}
+        
+        <button type="submit" class="btn btn-primary mt-3">저장</button>
+    </form>
+
+<script>
+document.getElementById('workspaceAccessForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    fetch('/admin/users/workspace_access/{{ user_id }}', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            alert(data.message);
+            window.location.href = '{{ url_for("manage_users") }}';
+        } else {
+            alert(data.error || '오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('처리 중 오류가 발생했습니다.');
+    });
+});
+</script>
+{% endblock %} 

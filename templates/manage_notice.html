@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="notice-tabs">
+    <a href="{{ url_for('attendance_notice') }}" class="tab-item">출결 공지</a>
+    <a href="{{ url_for('satisfaction_notice') }}" class="tab-item">만족도 공지</a>
+    <a href="{{ url_for('thread_notice') }}" class="tab-item">운영 질문 스레드</a>
+    <a href="{{ url_for('manage_notice') }}" class="tab-item active">공지 관리</a>
+    <a href="{{ url_for('notice_calendar') }}" class="tab-item">공지 캘린더</a>
+</div>
+
+<div class="header-container">
+    <h1>공지 관리</h1>
+
+</div>
+
+<div class="filter-container">
+    <div class="filter-group">
+        <label for="date-filter" class="filter-label"><strong>날짜 필터링 : </strong></label>
+        <div class="date-filter-wrapper">
+            <input type="date" id="date-filter" name="date-filter" class="filter-input">
+        </div>
+    </div>
+    <div class="filter-group">
+        <label for="status-filter" class="filter-label"><strong>상태 필터링 : </strong></label>
+        <select id="status-filter" name="status-filter" class="filter-select">
+            <option value="">모든 상태</option>
+            <option value="예약됨" selected>예약됨</option>
+            <option value="전송 완료">전송 완료</option>
+            <option value="전송 실패">전송 실패</option>
+        </select>
+    </div>
+</div>
+<h3> 아래 테이블을 통해 메시지, 전송 날짜 및 시간 수정이 가능합니다.</h3>
+<div class="notice-container">
+    <table class="notice-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>메시지 (수정 / 미리보기)</th>
+                <th>상태</th>
+                <th>작업</th>
+            </tr>
+        </thead>
+        <tbody id="notice-tbody">
+            {% for notice in notices %}
+            <tr data-date="{{ notice[3] }}" data-status="{{ notice[4] }}">
+                <td>{{ notice[0] }}</td>
+                <td class="flex-container">
+                    <textarea 
+                        class="message-container" 
+                        name="message" 
+                        id="message-{{ notice[0] }}" 
+                        rows="3">{{ notice[2] }}</textarea>
+                    <div id="preview-{{ notice[0] }}" class="preview-container">
+                        <article class="markdown-content">{{ notice[2] }}</article>
+                    </div>
+                </td>
+                <td>
+                    <div class="status-cell">{{ notice[4] }}</div>
+                    <input 
+                        type="datetime-local" 
+                        id="run_date-{{ notice[0] }}" 
+                        value="{{ notice[3] | replace(' ', 'T') }}" 
+                        style="margin-top: 5px; width: 100%;">
+                </td>
+                <td>
+                    <div class="button-container">
+                        <button 
+                            class="edit-btn" 
+                            onclick="submitEdit({{ notice[0] }})">수정</button>
+                        <button 
+                            class="send-now-btn" 
+                            onclick="sendNow({{ notice[0] }})">전송</button>
+                        <form method="POST" action="{{ url_for('delete_notice', notice_id=notice[0]) }}" style="display: inline;">
+                            <button type="submit" class="delete-btn">삭제</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.3.2/markdown-it.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it-emoji/2.0.0/markdown-it-emoji.min.js"></script>
+
+<script>
+   document.addEventListener('DOMContentLoaded', function () {
+        const md = markdownit({
+            html: false,
+            breaks: true,
+            typographer: false,
+            normalizeSpaces: false
+        }).use(window.markdownitEmoji).use(customParser).disable('emphasis').disable('blockquote');
+
+        function customParser(md) {
+            const defaultRender = md.renderer.rules.text || function (tokens, idx) {
+                return tokens[idx].content;
+            };
+
+            md.block.ruler.disable('list');
+
+            md.renderer.rules.text = function (tokens, idx, options, env, self) {
+                let content = tokens[idx].content;
+
+                content = content
+                    .replace(/^>\s?/gm, '▒ ')
+                    .replace(/<!(.*?)>/g, '@$1')
+                    .replace(/\*([^*]+?)\*/g, '<strong>$1</strong>')
+                    .replace(/<([^|>]+)\|([^>]+)>/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$2</a>');
+
+                return content;
+            };
+        }
+
+        document.querySelector('.notice-container').addEventListener('input', function (event) {
+            if (event.target.classList.contains('message-container')) {
+                const noticeId = event.target.id.split('-')[1];
+                const previewField = document.getElementById(`preview-${noticeId}`);
+                const rawContent = event.target.value.trim();
+                const renderedContent = md.render(rawContent);
+                previewField.innerHTML = `<article class="markdown-content">${renderedContent}</article>`;
+            }
+        });
+
+        document.querySelectorAll('.message-container').forEach(container => {
+            const noticeId = container.id.split('-')[1];
+            const previewField = document.getElementById(`preview-${noticeId}`);
+            const initialContent = container.value.trim();
+            const renderedContent = md.render(initialContent);
+            previewField.innerHTML = `<article class="markdown-content">${renderedContent}</article>`;
+        });
+
+        // 필터링 함수 정의
+        function applyFilters() {
+            const dateFilter = document.getElementById('date-filter').value;
+            const statusFilter = document.getElementById('status-filter').value;
+            
+            console.log('Applying filters - Date:', dateFilter, 'Status:', statusFilter); // 디버깅용
+            
+            document.querySelectorAll('#notice-tbody tr').forEach(row => {
+                const rowDate = row.getAttribute('data-date').split('T')[0];
+                const rowStatus = row.getAttribute('data-status');
+                
+                console.log('Row:', rowDate, rowStatus); // 디버깅용
+                
+                const matchesDate = !dateFilter || rowDate === dateFilter;
+                const matchesStatus = !statusFilter || rowStatus === statusFilter;
+                
+                console.log('Matches:', matchesDate, matchesStatus); // 디버깅용
+                
+                row.style.display = (matchesDate && matchesStatus) ? '' : 'none';
+            });
+        }
+
+        // 필터 초기값 설정
+        const urlParams = new URLSearchParams(window.location.search);
+        const dateParam = urlParams.get('date');
+        const statusParam = urlParams.get('status') || '예약됨';  // 기본값을 '예약됨'으로 설정
+
+        // 필터 값 설정
+        if (dateParam) {
+            document.getElementById('date-filter').value = dateParam;
+        }
+        
+        // 상태 필터 설정 ('예약됨'이 기본값)
+        document.getElementById('status-filter').value = statusParam;
+        
+        // 필터 즉시 적용
+        applyFilters();
+
+        // 필터 이벤트 리스너 추가
+        document.getElementById('date-filter').addEventListener('change', applyFilters);
+        document.getElementById('status-filter').addEventListener('change', applyFilters);
+    });
+
+    function submitEdit(noticeId) {
+        if (confirm('정말 수정하시겠습니까?')) {
+            const message = document.getElementById(`message-${noticeId}`).value;
+            const runDate = document.getElementById(`run_date-${noticeId}`).value;
+            fetch(`/notices/edit/${noticeId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ message: message, run_date: runDate })
+            }).then(response => {
+                if (response.ok) {
+                    alert('수정되었습니다!');
+                    location.reload();
+                } else {
+                    alert('수정에 실패했습니다.');
+                }
+            });
+        }
+    }
+
+    function sendNow(noticeId) {
+        if (confirm('지금 바로 전송하시겠습니까?')) {
+            fetch(`/notices/send-now/${noticeId}`, {
+                method: 'POST'
+            }).then(response => {
+                if (response.ok) {
+                    alert('메시지가 전송되었습니다!');
+                    location.reload();
+                } else {
+                    alert('메시지 전송에 실패했습니다.');
+                }
+            });
+        }
+    }
+
+    // 삭제 폼 제출 전 확인
+    document.querySelectorAll('form').forEach(form => {
+        form.onsubmit = function(e) {
+            if (!confirm('정말 삭제하시겠습니까?')) {
+                e.preventDefault();
+                return false;
+            }
+            return true;
+        };
+    });
+</script>
+{% endblock %}
+
+<style>
+.markdown-content {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.46668;
+    font-size: 15px;
+    color: rgb(29, 28, 29);
+    white-space: pre-wrap;
+}
+
+.markdown-content strong {
+    font-weight: 700;
+}
+
+.markdown-content em {
+    font-style: italic;
+}
+
+.markdown-content code {
+    background-color: #f7f7f9;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: Monaco, Menlo, Consolas, "Courier New", monospace;
+    font-size: 12px;
+    color: #e01e5a;
+}
+
+.markdown-content blockquote {
+    color: rgb(97, 96, 97);
+    border-left: 4px solid #e3e4e6;
+    padding-left: 12px;
+    margin: 4px 0;
+}
+
+.markdown-content .mention {
+    color: #1264a3;
+    background: #f0f3f7;
+    border-radius: 3px;
+    padding: 0 2px;
+    font-weight: 500;
+}
+
+.markdown-content a {
+    color: #1264a3;
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
+}
+
+.markdown-content del {
+    text-decoration: line-through;
+    color: rgb(97, 96, 97);
+}
+
+/* 상태별 색상 스타일 */
+.status-cell {
+    font-weight: bold;
+}
+
+tr[data-status="예약됨"] .status-cell {
+    color: #2196F3;
+}
+
+tr[data-status="전송 완료"] .status-cell {
+    color: #4CAF50;
+}
+
+tr[data-status="전송 실패"] .status-cell {
+    color: #F44336;
+}
+
+.send-now-btn {
+    background-color: #2196F3;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 0 5px;
+    font-size: 10px;
+    height: 16px;
+}
+
+.send-now-btn:hover {
+    background-color: #1976D2;
+}
+</style>
+

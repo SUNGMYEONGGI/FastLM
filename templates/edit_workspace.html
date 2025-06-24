@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>워크스페이스 수정</h1>
+
+{% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+        <ul>
+            {% for category, message in messages %}
+                <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endwith %}
+
+<form method="POST" class="workspace-form" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="name">워크스페이스 이름:</label>
+        <input type="text" name="name" value="{{ workspace['name'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="attendance_webhook">출결 공지 채널 웹훅:</label>
+        <input type="url" name="attendance_webhook" value="{{ workspace['attendance_webhook'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="operations_webhook">일반 공지 채널 웹훅:</label>
+        <input type="url" name="operations_webhook" value="{{ workspace['operations_webhook'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="question_webhook">운영 질문 채널 웹훅:</label>
+        <input type="url" name="question_webhook" value="{{ workspace['question_webhook'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="entry_time">입실 공지 시간:</label>
+        <input type="time" name="entry_time" value="{{ workspace['entry_time'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="mid_time">중간 공지 시간:</label>
+        <input type="time" name="mid_time" value="{{ workspace['mid_time'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="exit_time">퇴실 공지 시간:</label>
+        <input type="time" name="exit_time" value="{{ workspace['exit_time'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="qr_image">QR 이미지:</label>
+        {% if workspace['qr_image'] %}
+            <p>현재 QR 이미지: {{ workspace['qr_image'] }}</p>
+        {% endif %}
+        <input type="file" name="qr_image" accept="image/*">
+    </div>
+
+    <div class="form-group">
+        <label for="zoom_url">줌 URL:</label>
+        <input type="url" name="zoom_url" value="{{ workspace['zoom_url'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="zoom_id">줌 ID:</label>
+        <input type="text" name="zoom_id" value="{{ workspace['zoom_id'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="zoom_pw">줌 PW:</label>
+        <input type="text" name="zoom_pw" value="{{ workspace['zoom_pw'] }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="schedule_url">시간표 URL:</label>
+        <input type="text" name="schedule_url" value="{{ workspace['schedule_url'] }}" required>
+    </div>
+
+    <button type="submit" class="submit-btn">수정</button>
+</form>
+{% endblock %}

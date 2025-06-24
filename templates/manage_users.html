@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>사용자 관리</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>사용자명</th>
+                    <th>상태</th>
+                    <th>가입일</th>
+                    <th>권한</th>
+                    <th>워크스페이스</th>
+                    <th>작업</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user[0] }}</td>
+                    <td>{{ user[1] }}</td>
+                    <td>
+                        <span class="badge {% if user[2] == 'pending' %}bg-warning{% elif user[2] == 'approved' %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ user[2] if user[2] else '대기중' }}
+                        </span>
+                    </td>
+                    <td>{{ user[3] if user[3] else '정보 없음' }}</td>
+                    <td>
+                        {% if user[4] == 1 %}
+                            관리자
+                        {% else %}
+                            일반 사용자
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-success" 
+                                onclick="location.href='{{ url_for('manage_user_workspace_access', user_id=user[0]) }}'">
+                            워크스페이스 권한
+                        </button>
+                    </td>
+                    <td>
+                        {% if user[4] != 1 %}  {# 관리자가 아닌 경우에만 #}
+                            {% if user[2] != 'approved' %}
+                                <button class="btn btn-sm btn-success" onclick="approveUser({{ user[0] }})">승인</button>
+                                <button class="btn btn-sm btn-danger" onclick="rejectUser({{ user[0] }})">거부</button>
+                            {% endif %}
+                            <button class="btn btn-sm btn-danger" onclick="deleteUser({{ user[0] }})">삭제</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+<script>
+function approveUser(userId) {
+    if (confirm('이 사용자를 승인하시겠습니까?')) {
+        fetch(`/admin/users/${userId}/approve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert(data.error || '오류가 발생했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('처리 중 오류가 발생했습니다.');
+        });
+    }
+}
+
+function rejectUser(userId) {
+    if (confirm('이 사용자를 거부하시겠습니까?')) {
+        fetch(`/admin/users/${userId}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert(data.error || '오류가 발생했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('처리 중 오류가 발생했습니다.');
+        });
+    }
+}
+
+function deleteUser(userId) {
+    if (confirm('정말로 이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+        fetch(`/admin/users/${userId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert(data.error || '오류가 발생했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('처리 중 오류가 발생했습니다.');
+        });
+    }
+}
+</script>
+{% endblock %} 

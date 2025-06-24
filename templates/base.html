@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="{{ url_for('static', filename='js/scripts.js') }}" defer></script>
+</head>
+<body>
+    <nav>
+        <ul class="nav-left">
+            <img src="{{ url_for('static', filename='images/fc_icon.png') }}" 
+                 alt="홈 아이콘" 
+                 style="width: 60px; height: 60px; margin-right: 8px;"
+                 >
+            <li class="dropdown">
+                <a href="/workspace_select" class="dropdown-toggle"><strong>홈</strong></a>
+                <ul class="dropdown-menu">
+                    <li><a href="/workspace_select"><strong>워크스페이스 선택</strong></a></li>
+                    <li><a href="/bot_setting"><strong>Slack 봇 설정</strong></a></li>
+                </ul>
+            </li>
+
+            <!-- 공지 예약 메뉴 -->
+            <li class="dropdown" id="notice-menu"
+                style="display: {% if session.get('selected_workspace') %}block{% else %}none{% endif %};">
+                <a href="/notices/attendance" class="dropdown-toggle"><strong>공지 예약</strong></a>
+                <ul class="dropdown-menu">
+                    <li><a href="/notices/attendance"><strong>출결 공지 예약</strong></a></li>
+                    <li><a href="/notices/satisfaction"><strong>만족도 공지 예약</strong></a></li>
+                    <li><a href="/notices/thread"><strong>질문 스레드 예약</strong></a></li>
+                    <li><a href="/notices/manage"><strong>예약 관리</strong></a></li>
+                    <li><a href="/notices/calendar"><strong>공지 캘린더</strong></a></li>
+                </ul>
+            </li>
+            <li id="ninehire-menu"
+                style="display: {% if session.get('user_id') %}block{% else %}none{% endif %};">
+                <a href="/ninehire"><strong>모객선발 관리</strong></a>
+            </li>
+
+            <!-- 관리자 메뉴 -->
+            {% if session.get('is_admin') %}
+                <li style="display: block;">
+                    <a href="/admin/menu" class="dropdown-toggle"><strong>관리자 메뉴</strong></a>
+                </li>
+            {% endif %}
+        </ul>
+
+        <ul class="nav-right" style="display: flex; align-items: center;">
+            {% if session.get('selected_workspace') %}
+            <li class="workspace-indicator" style="display: flex; align-items: center; margin-right: 15px;">
+                <span><strong>현재 선택된 워크스페이스: {{ session.get('selected_workspace')[1] }}</strong></span>
+                
+                <!-- 삭제 버튼 -->
+                <button class="remove-workspace-btn" onclick="removeWorkspace()">
+                    <img src="{{ url_for('static', filename='images/x_icon.png') }}" alt="삭제" style="width: 15px; height: 15px;">
+                </button>
+                <!-- 새로고침 버튼 -->
+                <button class="remove-workspace-btn" onclick="refreshPage()">
+                    <img src="{{ url_for('static', filename='images/refresh_icon.png') }}" alt="새로고침" style="width: 15px; height: 15px;">
+                </button>
+            </li>
+            {% endif %}
+
+            {% if 'user_id' in session %}
+            <li class="workspace-indicator" style="display: flex; align-items: center; margin-right: 15px;">
+                <span><strong>계정: {{ session['username'] }}</strong></span>
+                <a href="{{ url_for('logout') }}" class="remove-workspace-btn">
+                    <img src="{{ url_for('static', filename='images/x_icon.png') }}" alt="로그아웃" style="width: 15px; height: 15px;">
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        // 워크스페이스 선택 해제 함수
+        function removeWorkspace() {
+            fetch("/remove_workspace", { method: "POST" })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.href = '/';  // 홈 화면으로 리다이렉트
+                    } else {
+                        alert("워크스페이스 선택 해제에 실패했습니다.");
+                    }
+                });
+        }
+
+        // 새로고침 함수
+        function refreshPage() {
+            location.reload();  // 페이지 새로고침
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const dropdown = document.querySelector('.dropdown');
+            const menu = dropdown.querySelector('.dropdown-menu');
+
+            let timeout;
+
+            // 드롭다운 열기
+            dropdown.addEventListener('mouseenter', function () {
+                clearTimeout(timeout);
+                menu.style.opacity = '1';
+                menu.style.visibility = 'visible';
+                menu.style.transform = 'translateY(0)';
+            });
+
+            // 드롭다운 닫기 (지연 시간 설정)
+            dropdown.addEventListener('mouseleave', function () {
+                timeout = setTimeout(() => {
+                    menu.style.opacity = '0';
+                    menu.style.visibility = 'hidden';
+                    menu.style.transform = 'translateY(-10px)';
+                }, 1000); // 지연 시간 300ms
+            });
+        });
+
+    </script>
+</body>
+
+
+</html>

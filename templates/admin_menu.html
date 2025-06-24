@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>관리자 메뉴</h1>
+
+<div class="admin-menu">
+    <a href="{{ url_for('register_workspace') }}" class="menu-item">워크스페이스 등록</a>
+    <a href="{{ url_for('manage_workspace') }}" class="menu-item">워크스페이스 관리</a>
+    <a href="{{ url_for('manage_users') }}" class="menu-item">회원관리</a>
+</div>
+{% endblock %}

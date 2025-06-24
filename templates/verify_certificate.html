@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>수료증 검증 시스템</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #1a237e;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 1rem;
+        }
+
+        .success-box, .error-box {
+            padding: 2rem;
+            border-radius: 10px;
+            margin-top: 1.5rem;
+        }
+
+        .success-box {
+            background-color: #f1f8e9;
+            border: 2px solid #7cb342;
+        }
+
+        .error-box {
+            background-color: #ffebee;
+            border: 2px solid #e53935;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #2e7d32;
+            font-size: 1.4rem;
+        }
+
+        .error-box h2 {
+            color: #c62828;
+        }
+
+        p {
+            margin: 0.8rem 0;
+            line-height: 1.6;
+            color: #424242;
+        }
+
+        strong {
+            color: #1a237e;
+            display: inline-block;
+            width: 100px;
+        }
+
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #757575;
+            font-size: 0.9rem;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .logo img {
+            height: 60px;
+            width: auto;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.5rem;
+                width: 85%;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .success-box, .error-box {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <!-- 로고 이미지 추가 -->
+            <img src="{{ url_for('static', filename='images/fc_logo.png') }}" alt="Logo">
+        </div>
+        <h1>수료증 진위확인 시스템</h1>
+        
+        {% if verified %}
+            <div class="success-box">
+                <h2>✅ 유효한 수료증입니다</h2>
+                <p><strong>교육과정</strong> {{ course_name }}</p>
+                <p><strong>수료자</strong> {{ student_name }}</p>
+                <p><strong>발급일</strong> {{ issue_date.strftime('%Y년 %m월 %d일') }}</p>
+                <p><strong>일련번호</strong> {{ serial_number }}</p>
+            </div>
+        {% else %}
+            <div class="error-box">
+                <h2>❌ 유효하지 않은 수료증입니다</h2>
+                <p>{{ error }}</p>
+            </div>
+        {% endif %}
+        
+        <div class="footer">
+            <p>본 시스템은 Fastcampus 공식 수료증 검증 시스템입니다.</p>
+            <p>© {{ year }} Fastcampus. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html> 

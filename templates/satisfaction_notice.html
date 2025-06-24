@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="notice-tabs">
+    <a href="{{ url_for('attendance_notice') }}" class="tab-item">출결 공지</a>
+    <a href="{{ url_for('satisfaction_notice') }}" class="tab-item active">만족도 공지</a>
+    <a href="{{ url_for('thread_notice') }}" class="tab-item">운영 질문 스레드</a>
+    <a href="{{ url_for('manage_notice') }}" class="tab-item">공지 관리</a>
+    <a href="{{ url_for('notice_calendar') }}" class="tab-item">공지 캘린더</a>
+</div>
+
+<h1>만족도 공지 예약</h1>
+
+<form method="POST" class="workspace-form">
+    <div class="form-group">
+        <label><strong>설문 유형을 선택하세요:</strong></label>
+        <div class="radio-group">
+            <label class="radio-container">
+                데일리 실시간 강의
+                <input type="radio" name="survey_type" value="데일리 실시간 강의"
+                       onclick="updateModuleName(this.value)" checked required>
+                <span class="checkmark"></span>
+            </label>
+
+            <label class="radio-container">
+                모듈
+                <input type="radio" name="survey_type" value="모듈"
+                       onclick="updateModuleName(this.value)">
+                <span class="checkmark"></span>
+            </label>
+
+            <label class="radio-container">
+                특강
+                <input type="radio" name="survey_type" value="특강"
+                       onclick="updateModuleName(this.value)">
+                <span class="checkmark"></span>
+            </label>
+
+            <label class="radio-container">
+                프로젝트
+                <input type="radio" name="survey_type" value="프로젝트"
+                       onclick="updateModuleName(this.value)">
+                <span class="checkmark"></span>
+            </label>
+
+            <label class="radio-container">
+                경진대회
+                <input type="radio" name="survey_type" value="경진대회"
+                       onclick="updateModuleName(this.value)">
+                <span class="checkmark"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label id="module-label" for="module_name">데일리 강의 이름:</label>
+        <div class="satisfaction_form-group">
+            <input type="text" name="module_name" id="module_name" placeholder="데일리 강의 이름을 입력하세요">
+        </div>
+    </div>
+
+    <div id="instructor-field" class="form-group" style="display: block;">
+        <label for="instructor_name">강사님 성함:</label>
+        <div class="satisfaction_form-group">
+            <input type="text" name="instructor_name" placeholder="강사님 성함 (ex. 박패캠)">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="survey_url">만족도 조사 링크:</label>
+        <div class="satisfaction_form-group">
+            <input type="url" name="survey_url" placeholder="조사 링크를 입력하세요" required>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="deadline">제출 기한 (날짜 및 시간):</label>
+        <div class="date-input-wrapper">
+            <input type="datetime-local" name="deadline" id="deadline" required>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="reservation">예약 시간 (날짜 및 시간):</label>
+        <div class="date-input-wrapper">
+            <input type="datetime-local" name="reservation" id="reservation" required>
+        </div>
+    </div>
+
+    <button type="submit" class="reservation_submit-btn">예약하기</button>
+</form>
+
+<script>
+    window.onload = function() {
+        const selectedValue = document.querySelector('input[name="survey_type"]:checked').value;
+        updateModuleName(selectedValue);
+
+        // 각 라디오 버튼에 이벤트 리스너 추가
+        const radioButtons = document.querySelectorAll('input[name="survey_type"]');
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateModuleName(this.value);
+            });
+        });
+
+        // 오늘 날짜와 시간을 설정하여 지난 시간 선택 불가하게 설정
+        const now = new Date().toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm 형식
+
+        const deadlineInput = document.getElementById('deadline');
+        const reservationInput = document.getElementById('reservation');
+
+        if (deadlineInput) {
+            deadlineInput.min = now; // 제출 기한 필드 제한
+        }
+
+        if (reservationInput) {
+            reservationInput.min = now; // 예약 시간 필드 제한
+        }
+    };
+
+    function updateModuleName(value) {
+        const moduleLabel = document.getElementById('module-label');
+        const moduleNameInput = document.getElementById('module_name');
+        const instructorField = document.getElementById('instructor-field');
+
+        moduleLabel.innerText = `${value} 이름:`;
+        moduleNameInput.placeholder = `${value} 이름을 입력하세요`;
+
+        if (['데일리 실시간 강의', '모듈', '특강', '프로젝트', '경진대회'].includes(value)) {
+            instructorField.style.display = 'block';
+        } else {
+            instructorField.style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}

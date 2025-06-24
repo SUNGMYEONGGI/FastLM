@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="notice-tabs">
+    <a href="{{ url_for('workspace_select') }}" class="tab-item active">워크스페이스 선택</a>
+    <a href="{{ url_for('bot_setting') }}" class="tab-item">Slack 봇 설정</a>
+</div>
+
+<h1>Slack 공지 예약 시스템</h1>
+<p>Slack 공지를 예약하고 관리하는 시스템입니다.</p>
+
+<!-- 워크스페이스 선택 폼 -->
+<div class="workspace-selection-container">
+    <form method="POST" action="/select_workspace" onsubmit="return confirmSelection();">
+        <select name="workspace_id" id="workspace_select" required>
+            <option disabled selected>워크스페이스 선택</option>
+            {% for workspace in workspaces %}
+                <option value="{{ workspace[0] }}">{{ workspace[1] }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="workspace-select-btn">선택</button>
+    </form>
+</div>
+
+
+<script>
+    function confirmSelection() {
+        const selectElement = document.getElementById('workspace_select');
+        const selectedOption = selectElement.options[selectElement.selectedIndex].text;
+        return confirm(`선택한 워크스페이스: ${selectedOption}\n이 워크스페이스가 맞습니까?`);
+    }
+</script>
+{% endblock %}

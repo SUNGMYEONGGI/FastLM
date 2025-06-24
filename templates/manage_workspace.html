@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
+    <h1>워크스페이스 관리</h1>
+    <select id="workspaceSelector" onchange="showSelectedWorkspace()" style="padding: 8px; font-size: 16px;">
+        <option value="">워크스페이스 선택</option>
+        {% for workspace in workspaces %}
+            <option value="{{ workspace[0] }}">{{ workspace[1] }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+{% if workspaces %}
+    {% for workspace in workspaces %}
+    <div class="workspace-info" id="workspace-{{ workspace[0] }}" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>항목</th>
+                    <th>내용</th>
+                    <th>작업</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>워크스페이스 이름</strong></td>
+                    <td>{{ workspace[1] }}</td>
+                    <td rowspan="4" style="vertical-align: top;">
+                        <div class="button-group">
+                            <form action="{{ url_for('edit_workspace', workspace_id=workspace[0]) }}" method="GET">
+                                <button type="submit" class="action-btn">수정</button>
+                            </form>
+                            <form action="{{ url_for('delete_workspace', workspace_id=workspace[0]) }}" method="POST">
+                                <button type="submit" class="action-btn" onclick="return confirm('정말 삭제하시겠습니까?');">삭제</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>출결 웹훅</strong></td>
+                    <td>{{ workspace[2] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>일반 공지 웹훅</strong></td>
+                    <td>{{ workspace[3] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>운영질문 웹훅</strong></td>
+                    <td>{{ workspace[4] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>입실 시간</strong></td>
+                    <td>{{ workspace[5] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>중간 시간</strong></td>
+                    <td>{{ workspace[6] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>퇴실 시간</strong></td>
+                    <td>{{ workspace[7] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>QR 이미지</strong></td>
+                    <td>
+                        {% if workspace[8] %}
+                            <a href="#" onclick="openModal('{{ url_for('get_qr_image', workspace_id=workspace[0]) }}'); return false;">QR 이미지 보기</a>
+                        {% else %}
+                            <span>등록된 이미지 없음</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Zoom URL</strong></td>
+                    <td><a href="{{ workspace[9] }}" target="_blank">Zoom 링크</a></td>
+                </tr>
+                <tr>
+                    <td><strong>Zoom ID</strong></td>
+                    <td>{{ workspace[10] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Zoom PW</strong></td>
+                    <td>{{ workspace[11] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>시간표 URL</strong></td>
+                    <td>{{ workspace[12] }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+{% else %}
+    <p>등록된 워크스페이스가 없습니다.</p>
+{% endif %}
+
+<!-- 페이지 하단에 모달 추가 -->
+<div id="qrModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <img id="qrImage" src="" alt="QR 코드" style="width: 100%; max-width: 500px;">
+    </div>
+</div>
+
+<!-- CSS 스타일 추가 -->
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 600px;
+    text-align: center;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.workspace-info {
+    margin-top: 20px;
+}
+
+select#workspaceSelector {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+}
+
+select#workspaceSelector:focus {
+    outline: none;
+    border-color: #007bff;
+}
+</style>
+
+<!-- JavaScript 추가 -->
+<script>
+var modal = document.getElementById("qrModal");
+var modalImg = document.getElementById("qrImage");
+var span = document.getElementsByClassName("close")[0];
+
+function openModal(imgUrl) {
+    modal.style.display = "block";
+    modalImg.src = imgUrl;
+    
+    // 이미지 로드 에러 처리
+    modalImg.onerror = function() {
+        alert('이미지를 불러올 수 없습니다.');
+        modal.style.display = "none";
+    };
+}
+
+span.onclick = function() {
+    modal.style.display = "none";
+}
+
+window.onclick = function(event) {
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+
+function showSelectedWorkspace() {
+    // 모든 워크스페이스 정보 숨기기
+    const workspaces = document.getElementsByClassName('workspace-info');
+    for (let workspace of workspaces) {
+        workspace.style.display = 'none';
+    }
+    
+    // 선택된 워크스페이스만 표시
+    const selectedId = document.getElementById('workspaceSelector').value;
+    if (selectedId) {
+        const selectedWorkspace = document.getElementById('workspace-' + selectedId);
+        if (selectedWorkspace) {
+            selectedWorkspace.style.display = 'block';
+            // URL 파라미터 업데이트
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('workspace', selectedId);
+            window.history.pushState({}, '', newUrl);
+        }
+    } else {
+        // 선택이 해제된 경우 URL에서 workspace 파라미터 제거
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.delete('workspace');
+        window.history.pushState({}, '', newUrl);
+    }
+}
+
+// 페이지 로드 시 URL 파라미터 확인
+window.onload = function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const workspaceId = urlParams.get('workspace');
+    if (workspaceId) {
+        document.getElementById('workspaceSelector').value = workspaceId;
+        showSelectedWorkspace();
+    }
+}
+
+// 브라우저 뒤로가기/앞으로가기 처리
+window.onpopstate = function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const workspaceId = urlParams.get('workspace');
+    document.getElementById('workspaceSelector').value = workspaceId || '';
+    showSelectedWorkspace();
+}
+</script>
+{% endblock %}
