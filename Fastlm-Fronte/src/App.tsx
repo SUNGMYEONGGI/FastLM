@@ -13,14 +13,17 @@ import RegisterPage from './pages/Auth/RegisterPage';
 import WorkspaceSelectionPage from './pages/WorkspaceSelectionPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 
+// Workspace Pages
+import WorkspaceRegisterPage from './pages/WorkspaceRegisterPage';
+import WorkspaceEditPage from './pages/WorkspaceEditPage';
+
 // Admin Pages
 import UserManagementPage from './pages/Admin/UserManagementPage';
 import AdminMenuPage from './pages/Admin/AdminMenuPage';
 import WorkspaceManagementPage from './pages/Admin/WorkspaceManagementPage';
-import WorkspaceRegisterPage from './pages/Admin/WorkspaceRegisterPage';
-import WorkspaceEditPage from './pages/Admin/WorkspaceEditPage';
 import UserWorkspaceAccessPage from './pages/Admin/UserWorkspaceAccessPage';
 import ScheduledJobsPage from './pages/Admin/ScheduledJobsPage';
+import WorkspaceApprovalPage from './pages/Admin/WorkspaceApprovalPage';
 
 // Notice Pages
 import AttendanceNoticePage from './pages/Notices/AttendanceNoticePage';
@@ -66,6 +69,19 @@ function App() {
               <Route path="/bot-setting" element={
                 <ProtectedRoute>
                   <BotSettingPage />
+                </ProtectedRoute>
+              } />
+
+              {/* Workspace Routes - 모든 사용자 접근 가능 */}
+              <Route path="/workspace/register" element={
+                <ProtectedRoute>
+                  <WorkspaceRegisterPage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/workspace/edit/:workspaceId" element={
+                <ProtectedRoute>
+                  <WorkspaceEditPage />
                 </ProtectedRoute>
               } />
               
@@ -138,10 +154,10 @@ function App() {
                   <WorkspaceManagementPage />
                 </ProtectedRoute>
               } />
-              
-              <Route path="/admin/workspace/register" element={
+
+              <Route path="/admin/workspace/approval" element={
                 <ProtectedRoute requireAdmin>
-                  <WorkspaceRegisterPage />
+                  <WorkspaceApprovalPage />
                 </ProtectedRoute>
               } />
               

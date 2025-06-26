@@ -45,9 +45,21 @@ class Workspace(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     slack_webhook_url = db.Column(db.String(500))
+    webhook_urls = db.Column(db.Text)  # JSON 형태로 저장
+    checkin_time = db.Column(db.Time)  # 입실 시간
+    middle_time = db.Column(db.Time)   # 중간 시간
+    checkout_time = db.Column(db.Time) # 퇴실 시간
     qr_image_url = db.Column(db.String(500))
+    zoom_url = db.Column(db.String(500))
+    zoom_id = db.Column(db.String(100))
+    zoom_password = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 관계
+    creator = db.relationship('User', backref='created_workspaces', lazy=True)
     
     # 관계
     user_workspaces = db.relationship('UserWorkspace', backref='workspace', lazy=True)
@@ -349,23 +361,98 @@ def get_user_workspaces():
     current_user_id = int(get_jwt_identity())
     current_user = User.query.get(current_user_id)
     
-    if current_user.is_admin:
-        # 관리자는 모든 워크스페이스 조회
-        workspaces = Workspace.query.all()
+    # 모든 사용자(관리자 포함)는 자신에게 할당된 승인된 워크스페이스만 조회
+    user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
+    
+    if user_workspace_ids:
+        workspaces = Workspace.query.filter(
+            Workspace.id.in_(user_workspace_ids),
+            Workspace.status == 'approved'
+        ).all()
     else:
-        # 일반 사용자는 자신에게 할당된 워크스페이스만 조회
-        user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
-        workspaces = Workspace.query.filter(Workspace.id.in_(user_workspace_ids)).all()
+        workspaces = []
     
     return jsonify([{
         'id': ws.id,
         'name': ws.name,
         'description': ws.description,
         'slackWebhookUrl': ws.slack_webhook_url,
+        'webhookUrls': json.loads(ws.webhook_urls) if ws.webhook_urls else [],
+        'checkinTime': ws.checkin_time.strftime('%H:%M') if ws.checkin_time else None,
+        'middleTime': ws.middle_time.strftime('%H:%M') if ws.middle_time else None,
+        'checkoutTime': ws.checkout_time.strftime('%H:%M') if ws.checkout_time else None,
         'qrImageUrl': ws.qr_image_url,
+        'zoomUrl': ws.zoom_url,
+        'zoomId': ws.zoom_id,
+        'zoomPassword': ws.zoom_password,
+        'status': ws.status,
+        'createdBy': ws.creator.name if ws.creator else None,
         'createdAt': ws.created_at.isoformat(),
         'updatedAt': ws.updated_at.isoformat()
     } for ws in workspaces])
+
+@app.route('/api/workspaces', methods=['POST'])
+@jwt_required()
+def create_workspace_by_user():
+    try:
+        current_user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        # 웹훅 URL들을 JSON으로 저장
+        webhook_urls = json.dumps(data.get('webhookUrls', []))
+        
+        # 시간 형식 변환
+        checkin_time = None
+        middle_time = None
+        checkout_time = None
+        
+        if data.get('checkinTime'):
+            checkin_time = datetime.strptime(data['checkinTime'], '%H:%M').time()
+        if data.get('middleTime'):
+            middle_time = datetime.strptime(data['middleTime'], '%H:%M').time()
+        if data.get('checkoutTime'):
+            checkout_time = datetime.strptime(data['checkoutTime'], '%H:%M').time()
+        
+        workspace = Workspace(
+            name=data['name'],
+            description=data.get('description', ''),
+            slack_webhook_url=data.get('slackWebhookUrl', ''),
+            webhook_urls=webhook_urls,
+            checkin_time=checkin_time,
+            middle_time=middle_time,
+            checkout_time=checkout_time,
+            zoom_url=data.get('zoomUrl', ''),
+            zoom_id=data.get('zoomId', ''),
+            zoom_password=data.get('zoomPassword', ''),
+            created_by=current_user_id,
+            status='pending'  # 승인 대기 상태로 생성
+        )
+        
+        db.session.add(workspace)
+        db.session.commit()
+        
+        return jsonify({
+            'id': workspace.id,
+            'name': workspace.name,
+            'description': workspace.description,
+            'slackWebhookUrl': workspace.slack_webhook_url,
+            'webhookUrls': json.loads(workspace.webhook_urls) if workspace.webhook_urls else [],
+            'checkinTime': workspace.checkin_time.strftime('%H:%M') if workspace.checkin_time else None,
+            'middleTime': workspace.middle_time.strftime('%H:%M') if workspace.middle_time else None,
+            'checkoutTime': workspace.checkout_time.strftime('%H:%M') if workspace.checkout_time else None,
+            'qrImageUrl': workspace.qr_image_url,
+            'zoomUrl': workspace.zoom_url,
+            'zoomId': workspace.zoom_id,
+            'zoomPassword': workspace.zoom_password,
+            'status': workspace.status,
+            'createdBy': workspace.creator.name if workspace.creator else None,
+            'createdAt': workspace.created_at.isoformat(),
+            'updatedAt': workspace.updated_at.isoformat()
+        }), 201
+        
+    except Exception as e:
+        print(f"워크스페이스 등록 오류: {str(e)}")
+        return jsonify({'message': '워크스페이스 등록에 실패했습니다.'}), 500
 
 @app.route('/api/admin/workspaces', methods=['POST'])
 @jwt_required()
@@ -381,7 +468,9 @@ def create_workspace():
     workspace = Workspace(
         name=data['name'],
         description=data.get('description'),
-        slack_webhook_url=data.get('slackWebhookUrl')
+        slack_webhook_url=data.get('slackWebhookUrl'),
+        created_by=current_user_id,
+        status='approved'  # 관리자가 직접 생성하는 경우 즉시 승인
     )
     
     db.session.add(workspace)
@@ -393,9 +482,312 @@ def create_workspace():
         'description': workspace.description,
         'slackWebhookUrl': workspace.slack_webhook_url,
         'qrImageUrl': workspace.qr_image_url,
+        'status': workspace.status,
+        'createdBy': workspace.creator.name if workspace.creator else None,
         'createdAt': workspace.created_at.isoformat(),
         'updatedAt': workspace.updated_at.isoformat()
     }), 201
+
+@app.route('/api/admin/workspaces', methods=['GET'])
+@jwt_required()
+def get_all_workspaces_admin():
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user.is_admin:
+        return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
+    
+    workspaces = Workspace.query.all()
+    
+    return jsonify([{
+        'id': ws.id,
+        'name': ws.name,
+        'description': ws.description,
+        'slackWebhookUrl': ws.slack_webhook_url,
+        'qrImageUrl': ws.qr_image_url,
+        'status': ws.status,
+        'createdBy': ws.creator.name if ws.creator else None,
+        'createdAt': ws.created_at.isoformat(),
+        'updatedAt': ws.updated_at.isoformat()
+    } for ws in workspaces])
+
+@app.route('/api/admin/workspaces/pending', methods=['GET'])
+@jwt_required()
+def get_pending_workspaces():
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user.is_admin:
+        return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
+    
+    status_filter = request.args.get('status', 'pending')
+    
+    if status_filter == 'all':
+        workspaces = Workspace.query.all()
+    else:
+        workspaces = Workspace.query.filter_by(status=status_filter).all()
+    
+    return jsonify([{
+        'id': ws.id,
+        'name': ws.name,
+        'description': ws.description,
+        'slackWebhookUrl': ws.slack_webhook_url,
+        'qrImageUrl': ws.qr_image_url,
+        'status': ws.status,
+        'createdBy': ws.creator.name if ws.creator else None,
+        'createdAt': ws.created_at.isoformat(),
+        'updatedAt': ws.updated_at.isoformat()
+    } for ws in workspaces])
+
+@app.route('/api/admin/workspaces/<int:workspace_id>/approve', methods=['PUT'])
+@jwt_required()
+def approve_workspace(workspace_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user.is_admin:
+        return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
+    
+    workspace = Workspace.query.get(workspace_id)
+    if not workspace:
+        return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+    
+    data = request.get_json()
+    new_status = data.get('status')
+    
+    if new_status not in ['approved', 'rejected']:
+        return jsonify({'message': '유효하지 않은 상태입니다.'}), 400
+    
+    workspace.status = new_status
+    workspace.updated_at = datetime.utcnow()
+    
+    # 승인된 경우 워크스페이스 생성자에게 접근 권한 부여
+    if new_status == 'approved':
+        existing_access = UserWorkspace.query.filter_by(
+            user_id=workspace.created_by,
+            workspace_id=workspace.id
+        ).first()
+        
+        if not existing_access:
+            user_workspace = UserWorkspace(
+                user_id=workspace.created_by,
+                workspace_id=workspace.id
+            )
+            db.session.add(user_workspace)
+    
+    db.session.commit()
+    
+    return jsonify({'message': f'워크스페이스가 {new_status}되었습니다.'})
+
+@app.route('/api/workspaces/<int:workspace_id>', methods=['GET'])
+@jwt_required()
+def get_workspace_detail(workspace_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        
+        # 사용자가 해당 워크스페이스에 접근 권한이 있는지 확인
+        user_workspace = UserWorkspace.query.filter_by(
+            user_id=current_user_id,
+            workspace_id=workspace_id
+        ).first()
+        
+        if not user_workspace:
+            return jsonify({'message': '워크스페이스에 접근 권한이 없습니다.'}), 403
+        
+        workspace = Workspace.query.get(workspace_id)
+        if not workspace:
+            return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+        
+        return jsonify({
+            'id': workspace.id,
+            'name': workspace.name,
+            'description': workspace.description,
+            'slackWebhookUrl': workspace.slack_webhook_url,
+            'webhookUrls': json.loads(workspace.webhook_urls) if workspace.webhook_urls else [],
+            'checkinTime': workspace.checkin_time.strftime('%H:%M') if workspace.checkin_time else None,
+            'middleTime': workspace.middle_time.strftime('%H:%M') if workspace.middle_time else None,
+            'checkoutTime': workspace.checkout_time.strftime('%H:%M') if workspace.checkout_time else None,
+            'qrImageUrl': workspace.qr_image_url,
+            'zoomUrl': workspace.zoom_url,
+            'zoomId': workspace.zoom_id,
+            'zoomPassword': workspace.zoom_password,
+            'status': workspace.status,
+            'createdBy': workspace.creator.name if workspace.creator else None,
+            'createdAt': workspace.created_at.isoformat(),
+            'updatedAt': workspace.updated_at.isoformat()
+        })
+        
+    except Exception as e:
+        print(f"워크스페이스 조회 오류: {str(e)}")
+        return jsonify({'message': '워크스페이스 조회에 실패했습니다.'}), 500
+
+@app.route('/api/workspaces/<int:workspace_id>', methods=['PUT'])
+@jwt_required()
+def update_workspace(workspace_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        workspace = Workspace.query.get(workspace_id)
+        if not workspace:
+            return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+        
+        # 관리자이거나 워크스페이스 생성자인 경우에만 수정 가능
+        if not current_user.is_admin and workspace.created_by != current_user_id:
+            return jsonify({'message': '워크스페이스 수정 권한이 없습니다.'}), 403
+        
+        data = request.get_json()
+        
+        # 웹훅 URL들을 JSON으로 저장
+        if 'webhookUrls' in data:
+            workspace.webhook_urls = json.dumps(data['webhookUrls'])
+        
+        # 시간 형식 변환
+        if 'checkinTime' in data and data['checkinTime']:
+            workspace.checkin_time = datetime.strptime(data['checkinTime'], '%H:%M').time()
+        elif 'checkinTime' in data and not data['checkinTime']:
+            workspace.checkin_time = None
+            
+        if 'middleTime' in data and data['middleTime']:
+            workspace.middle_time = datetime.strptime(data['middleTime'], '%H:%M').time()
+        elif 'middleTime' in data and not data['middleTime']:
+            workspace.middle_time = None
+            
+        if 'checkoutTime' in data and data['checkoutTime']:
+            workspace.checkout_time = datetime.strptime(data['checkoutTime'], '%H:%M').time()
+        elif 'checkoutTime' in data and not data['checkoutTime']:
+            workspace.checkout_time = None
+        
+        # 다른 필드들 업데이트
+        if 'name' in data:
+            workspace.name = data['name']
+        if 'description' in data:
+            workspace.description = data['description']
+        if 'slackWebhookUrl' in data:
+            workspace.slack_webhook_url = data['slackWebhookUrl']
+        if 'zoomUrl' in data:
+            workspace.zoom_url = data['zoomUrl']
+        if 'zoomId' in data:
+            workspace.zoom_id = data['zoomId']
+        if 'zoomPassword' in data:
+            workspace.zoom_password = data['zoomPassword']
+        
+        workspace.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'id': workspace.id,
+            'name': workspace.name,
+            'description': workspace.description,
+            'slackWebhookUrl': workspace.slack_webhook_url,
+            'webhookUrls': json.loads(workspace.webhook_urls) if workspace.webhook_urls else [],
+            'checkinTime': workspace.checkin_time.strftime('%H:%M') if workspace.checkin_time else None,
+            'middleTime': workspace.middle_time.strftime('%H:%M') if workspace.middle_time else None,
+            'checkoutTime': workspace.checkout_time.strftime('%H:%M') if workspace.checkout_time else None,
+            'qrImageUrl': workspace.qr_image_url,
+            'zoomUrl': workspace.zoom_url,
+            'zoomId': workspace.zoom_id,
+            'zoomPassword': workspace.zoom_password,
+            'status': workspace.status,
+            'createdBy': workspace.creator.name if workspace.creator else None,
+            'createdAt': workspace.created_at.isoformat(),
+            'updatedAt': workspace.updated_at.isoformat()
+        })
+        
+    except Exception as e:
+        print(f"워크스페이스 수정 오류: {str(e)}")
+        db.session.rollback()
+        return jsonify({'message': '워크스페이스 수정에 실패했습니다.'}), 500
+
+@app.route('/api/workspaces/<int:workspace_id>/qr', methods=['POST'])
+@jwt_required()
+def upload_workspace_qr_image(workspace_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        
+        # 사용자가 해당 워크스페이스에 접근 권한이 있는지 확인
+        user_workspace = UserWorkspace.query.filter_by(
+            user_id=current_user_id,
+            workspace_id=workspace_id
+        ).first()
+        
+        if not user_workspace:
+            return jsonify({'message': '워크스페이스에 접근 권한이 없습니다.'}), 403
+        
+        workspace = Workspace.query.get(workspace_id)
+        if not workspace:
+            return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+        
+        if 'qrImage' not in request.files:
+            return jsonify({'message': 'QR 이미지가 없습니다.'}), 400
+        
+        file = request.files['qrImage']
+        if file.filename == '':
+            return jsonify({'message': '파일이 선택되지 않았습니다.'}), 400
+        
+        if file and file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+            # 파일명을 워크스페이스 ID로 고유하게 생성
+            file_extension = file.filename.rsplit('.', 1)[1].lower()
+            filename = f'workspace_{workspace_id}_qr.{file_extension}'
+            file_path = os.path.join('static', 'qr_images', filename)
+            
+            # 디렉토리가 없으면 생성
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            file.save(file_path)
+            
+            # 데이터베이스에 URL 저장
+            qr_url = f'/static/qr_images/{filename}'
+            workspace.qr_image_url = qr_url
+            workspace.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'QR 이미지가 업로드되었습니다.',
+                'qrImageUrl': qr_url
+            })
+        else:
+            return jsonify({'message': '지원되지 않는 파일 형식입니다.'}), 400
+            
+    except Exception as e:
+        print(f"QR 이미지 업로드 오류: {str(e)}")
+        return jsonify({'message': 'QR 이미지 업로드에 실패했습니다.'}), 500
+
+@app.route('/api/workspaces/<int:workspace_id>/leave', methods=['DELETE'])
+@jwt_required()
+def leave_workspace(workspace_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        print(f"워크스페이스 나가기 요청 - 사용자 ID: {current_user_id}, 워크스페이스 ID: {workspace_id}")
+        
+        # 워크스페이스가 존재하는지 확인
+        workspace = Workspace.query.get(workspace_id)
+        if not workspace:
+            print(f"워크스페이스를 찾을 수 없음: {workspace_id}")
+            return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+        
+        # 사용자-워크스페이스 연결 삭제
+        user_workspace = UserWorkspace.query.filter_by(
+            user_id=current_user_id,
+            workspace_id=workspace_id
+        ).first()
+        
+        if not user_workspace:
+            print(f"사용자-워크스페이스 연결을 찾을 수 없음: 사용자 {current_user_id}, 워크스페이스 {workspace_id}")
+            return jsonify({'message': '워크스페이스에 할당되지 않았습니다.'}), 404
+        
+        print(f"사용자-워크스페이스 연결 삭제: {user_workspace.id}")
+        db.session.delete(user_workspace)
+        db.session.commit()
+        
+        return jsonify({'message': '워크스페이스 할당이 해제되었습니다.'})
+        
+    except Exception as e:
+        print(f"워크스페이스 나가기 오류: {str(e)}")
+        db.session.rollback()
+        return jsonify({'message': '워크스페이스 나가기 중 오류가 발생했습니다.'}), 500
 
 @app.route('/api/admin/workspaces/<int:workspace_id>/qr', methods=['POST'])
 @jwt_required()

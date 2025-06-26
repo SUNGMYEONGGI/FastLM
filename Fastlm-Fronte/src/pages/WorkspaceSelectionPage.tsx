@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, ArrowRight, Plus } from 'lucide-react';
+import { Building2, ArrowRight, Plus, X, Edit } from 'lucide-react';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useAuth } from '../contexts/AuthContext';
+import { workspaceAPI } from '../services/api';
+import toast from 'react-hot-toast';
 import Layout from '../components/Layout/Layout';
 
 const WorkspaceSelectionPage: React.FC = () => {
@@ -17,6 +19,28 @@ const WorkspaceSelectionPage: React.FC = () => {
   const handleWorkspaceSelect = (workspace: any) => {
     selectWorkspace(workspace);
     navigate('/dashboard');
+  };
+
+  const handleEditWorkspace = (e: React.MouseEvent, workspaceId: number) => {
+    e.stopPropagation(); // 워크스페이스 선택 이벤트 방지
+    navigate(`/workspace/edit/${workspaceId}`);
+  };
+
+  const handleLeaveWorkspace = async (e: React.MouseEvent, workspaceId: string, workspaceName: string) => {
+    e.stopPropagation(); // 워크스페이스 선택 이벤트 방지
+    
+    if (!window.confirm(`'${workspaceName}' 워크스페이스에서 나가시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      await workspaceAPI.leaveWorkspace(workspaceId);
+      toast.success('워크스페이스에서 나갔습니다.');
+      refreshWorkspaces();
+    } catch (error) {
+      console.error('워크스페이스 나가기 실패:', error);
+      toast.error('워크스페이스에서 나가는데 실패했습니다.');
+    }
   };
 
   if (workspaces.length === 0) {
@@ -103,7 +127,16 @@ const WorkspaceSelectionPage: React.FC = () => {
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
                     <Building2 className="w-6 h-6 text-blue-600" />
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => handleEditWorkspace(e, workspace.id)}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="워크스페이스 편집"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                  </div>
                 </div>
                 
                 <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-blue-900 transition-colors">

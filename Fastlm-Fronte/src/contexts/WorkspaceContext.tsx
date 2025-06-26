@@ -39,9 +39,13 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
     refreshWorkspaces();
   }, [user]);
 
-  const selectWorkspace = (workspace: Workspace) => {
+  const selectWorkspace = (workspace: Workspace | null) => {
     setSelectedWorkspace(workspace);
-    localStorage.setItem('selectedWorkspaceId', workspace.id);
+    if (workspace) {
+      localStorage.setItem('selectedWorkspaceId', workspace.id);
+    } else {
+      localStorage.removeItem('selectedWorkspaceId');
+    }
   };
 
   useEffect(() => {

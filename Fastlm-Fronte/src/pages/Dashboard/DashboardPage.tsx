@@ -27,7 +27,7 @@ const DashboardPage: React.FC = () => {
       icon: '🏢',
       links: [
         { name: '워크스페이스 선택', path: '/workspace' },
-        { name: 'QR 코드 관리', path: '/qr' }
+        ...(selectedWorkspace ? [{ name: '워크스페이스 편집', path: `/workspace/edit/${selectedWorkspace.id}` }] : []),
       ]
     },
     {
@@ -49,7 +49,7 @@ const DashboardPage: React.FC = () => {
         { name: '관리자 메뉴', path: '/admin' },
         { name: '사용자 관리', path: '/admin/users' },
         { name: '워크스페이스 관리', path: '/admin/workspace/manage' },
-        { name: '워크스페이스 등록', path: '/admin/workspace/register' },
+        { name: '워크스페이스 승인', path: '/admin/workspace/approval' },
         { name: '스케줄러 작업', path: '/admin/scheduler/jobs' },
         { name: 'Zoom 퇴실 기록', path: '/zoom/exit-records' }
       ]
@@ -152,7 +152,7 @@ const DashboardPage: React.FC = () => {
           {/* 빠른 액션 */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">빠른 액션</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Link
                 to="/notices/attendance"
                 className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -173,6 +173,13 @@ const DashboardPage: React.FC = () => {
               >
                 <span className="text-2xl mb-2">⚙️</span>
                 <span className="text-sm font-medium text-gray-900">공지 관리</span>
+              </Link>
+              <Link
+                to="/workspace/register"
+                className="flex flex-col items-center p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+              >
+                <span className="text-2xl mb-2">🏢</span>
+                <span className="text-sm font-medium text-gray-900">워크스페이스 등록</span>
               </Link>
               <Link
                 to="/qr"

@@ -138,7 +138,7 @@ export const userAPI = {
 // Workspace API
 export const workspaceAPI = {
   async getAllWorkspaces(): Promise<Workspace[]> {
-    const response = await fetch(`${API_BASE_URL}/workspaces`, {
+    const response = await fetch(`${API_BASE_URL}/admin/workspaces`, {
       headers: getAuthHeaders()
     });
     
@@ -156,7 +156,7 @@ export const workspaceAPI = {
   },
 
   async createWorkspace(workspaceData: any): Promise<Workspace> {
-    const response = await fetch(`${API_BASE_URL}/admin/workspaces`, {
+    const response = await fetch(`${API_BASE_URL}/workspaces`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(workspaceData)
@@ -166,7 +166,74 @@ export const workspaceAPI = {
     return response.json();
   },
 
-  async updateWorkspace(workspaceId: string, workspaceData: any): Promise<Workspace> {
+  async getPendingWorkspaces(filter: 'pending' | 'all' = 'pending'): Promise<Workspace[]> {
+    const queryParam = filter === 'all' ? '' : '?status=pending';
+    const response = await fetch(`${API_BASE_URL}/admin/workspaces/pending${queryParam}`, {
+      headers: getAuthHeaders()
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch pending workspaces');
+    return response.json();
+  },
+
+  async approveWorkspace(workspaceId: string, approval: { status: 'approved' | 'rejected' }): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/admin/workspaces/${workspaceId}/approve`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(approval)
+    });
+    
+    if (!response.ok) throw new Error('Failed to approve workspace');
+  },
+
+  async getWorkspaceDetail(workspaceId: number): Promise<Workspace> {
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}`, {
+      headers: getAuthHeaders()
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch workspace detail');
+    return response.json();
+  },
+
+  async updateWorkspace(workspaceId: number, workspaceData: any): Promise<Workspace> {
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(workspaceData)
+    });
+    
+    if (!response.ok) throw new Error('Failed to update workspace');
+    return response.json();
+  },
+
+  async uploadQRImage(workspaceId: number, file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('qrImage', file);
+    
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/qr`, {
+      method: 'POST',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
+      body: formData
+    });
+    
+    if (!response.ok) throw new Error('Failed to upload QR image');
+    const result = await response.json();
+    return result.qrImageUrl;
+  },
+
+  async leaveWorkspace(workspaceId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/leave`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    
+    if (!response.ok) throw new Error('Failed to leave workspace');
+  },
+
+  async updateWorkspaceAdmin(workspaceId: string, workspaceData: any): Promise<Workspace> {
     const response = await fetch(`${API_BASE_URL}/admin/workspaces/${workspaceId}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -186,22 +253,7 @@ export const workspaceAPI = {
     if (!response.ok) throw new Error('Failed to delete workspace');
   },
 
-  async uploadQRImage(workspaceId: string, file: File): Promise<string> {
-    const formData = new FormData();
-    formData.append('qr_image', file);
-    
-    const response = await fetch(`${API_BASE_URL}/admin/workspaces/${workspaceId}/qr`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: formData
-    });
-    
-    if (!response.ok) throw new Error('Failed to upload QR image');
-    const { imageUrl } = await response.json();
-    return imageUrl;
-  }
+
 };
 
 // Notice API

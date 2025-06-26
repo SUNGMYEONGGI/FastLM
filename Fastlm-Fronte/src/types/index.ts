@@ -10,11 +10,20 @@ export interface User {
 }
 
 export interface Workspace {
-  id: string;
+  id: number;
   name: string;
-  description: string;
-  slackWebhookUrl: string;
+  description?: string;
+  slackWebhookUrl?: string;
+  webhookUrls?: string[];
+  checkinTime?: string;
+  middleTime?: string;
+  checkoutTime?: string;
   qrImageUrl?: string;
+  zoomUrl?: string;
+  zoomId?: string;
+  zoomPassword?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,7 +69,7 @@ export interface AuthContextType {
 export interface WorkspaceContextType {
   selectedWorkspace: Workspace | null;
   workspaces: Workspace[];
-  selectWorkspace: (workspace: Workspace) => void;
+  selectWorkspace: (workspace: Workspace | null) => void;
   refreshWorkspaces: () => Promise<void>;
 }
 
@@ -100,4 +109,8 @@ export interface WorkspaceUpdateRequest {
   name?: string;
   description?: string;
   slackWebhookUrl?: string;
+}
+
+export interface WorkspaceApprovalRequest {
+  status: 'approved' | 'rejected';
 }

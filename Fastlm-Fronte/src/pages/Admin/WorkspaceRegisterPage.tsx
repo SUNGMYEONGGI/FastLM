@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Layout from '../../components/Layout/Layout';
 import { workspaceAPI } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const WorkspaceRegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -56,13 +58,27 @@ const WorkspaceRegisterPage: React.FC = () => {
         }
       }
 
-      toast.success('워크스페이스가 등록되었습니다');
-      navigate('/admin/workspace/manage');
+      // 관리자인 경우와 일반 사용자인 경우 다른 메시지 표시
+      if (user?.isAdmin) {
+        toast.success('워크스페이스가 등록되었습니다');
+        navigate('/admin/workspace/manage');
+      } else {
+        toast.success('워크스페이스 등록 신청이 완료되었습니다. 관리자 승인 후 사용하실 수 있습니다.');
+        navigate('/workspace');
+      }
     } catch (error) {
       console.error('워크스페이스 등록 오류:', error);
       toast.error('워크스페이스 등록에 실패했습니다');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (user?.isAdmin) {
+      navigate('/admin/workspace/manage');
+    } else {
+      navigate('/workspace');
     }
   };
 
@@ -73,6 +89,11 @@ const WorkspaceRegisterPage: React.FC = () => {
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
               <h1 className="text-2xl font-bold text-gray-900">워크스페이스 등록</h1>
+              {!user?.isAdmin && (
+                <p className="text-sm text-gray-600 mt-2">
+                  등록 신청 후 관리자 승인을 받아야 워크스페이스를 사용할 수 있습니다.
+                </p>
+              )}
             </div>
 
             <form onSubmit={handleSubmit} className="p-6">
@@ -147,7 +168,7 @@ const WorkspaceRegisterPage: React.FC = () => {
               <div className="flex justify-end space-x-4 mt-8">
                 <button
                   type="button"
-                  onClick={() => navigate('/admin/workspace/manage')}
+                  onClick={handleCancel}
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={loading}
                 >
@@ -158,7 +179,7 @@ const WorkspaceRegisterPage: React.FC = () => {
                   className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                   disabled={loading}
                 >
-                  {loading ? '등록 중...' : '등록'}
+                  {loading ? '등록 중...' : user?.isAdmin ? '등록' : '신청'}
                 </button>
               </div>
             </form>

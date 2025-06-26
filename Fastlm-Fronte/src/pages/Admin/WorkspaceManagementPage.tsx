@@ -61,7 +61,7 @@ const WorkspaceManagementPage: React.FC = () => {
                 <h1 className="text-2xl font-bold text-gray-900">워크스페이스 관리</h1>
                 <div className="flex space-x-4">
                   <Link
-                    to="/admin/workspace/register"
+                    to="/workspace/register"
                     className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
                   >
                     새 워크스페이스 등록
@@ -90,6 +90,12 @@ const WorkspaceManagementPage: React.FC = () => {
                       설명
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      상태
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      생성자
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       생성일
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -110,6 +116,21 @@ const WorkspaceManagementPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {workspace.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          workspace.status === 'approved' 
+                            ? 'bg-green-100 text-green-800'
+                            : workspace.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {workspace.status === 'approved' ? '승인됨' : 
+                           workspace.status === 'pending' ? '승인대기' : '거부됨'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {workspace.createdBy || '알 수 없음'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(workspace.createdAt).toLocaleDateString('ko-KR')}
