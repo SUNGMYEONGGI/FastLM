@@ -73,7 +73,9 @@ class UserWorkspace(db.Model):
 
 class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    type = db.Column(db.String(50), nullable=False)  # attendance, satisfaction, thread
+    type = db.Column(db.String(50), nullable=False)  # attendance, satisfaction, thread, custom
+    category_id = db.Column(db.Integer, db.ForeignKey('notice_category.id'), nullable=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('notice_template.id'), nullable=True)
     title = db.Column(db.String(200), nullable=False)
     message = db.Column(db.Text, nullable=False)
     workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=False)
@@ -82,12 +84,44 @@ class Notice(db.Model):
     status = db.Column(db.String(20), default='scheduled')  # scheduled, sent, failed
     no_image = db.Column(db.Boolean, default=False)
     form_data = db.Column(db.Text)  # JSON 형태로 저장
+    variable_data = db.Column(db.Text)  # JSON 형태로 저장 (템플릿 변수값)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     sent_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)
     
     # 관계
     creator = db.relationship('User', backref='created_notices', lazy=True)
+
+class NoticeCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    type = db.Column(db.String(20), nullable=False)  # predefined, custom
+    description = db.Column(db.Text)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=True)  # null이면 전역 카테고리
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 관계
+    templates = db.relationship('NoticeTemplate', backref='category', lazy=True)
+    notices = db.relationship('Notice', backref='category', lazy=True)
+
+class NoticeTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('notice_category.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=False)
+    variables = db.Column(db.Text)  # JSON 형태로 저장
+    is_default = db.Column(db.Boolean, default=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 관계
+    creator = db.relationship('User', backref='created_templates', lazy=True)
+    notices = db.relationship('Notice', backref='template', lazy=True)
 
 class ScheduledJob(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -172,7 +206,7 @@ def login():
 @jwt_required()
 def verify_token():
     current_user_id = int(get_jwt_identity())
-    user = User.query.get(current_user_id)
+    user = db.session.get(User, current_user_id)
     
     if not user:
         return jsonify({'message': '사용자를 찾을 수 없습니다.'}), 404
@@ -193,7 +227,7 @@ def get_all_users():
         print("get_all_users API 호출됨")
         current_user_id = int(get_jwt_identity())
         print(f"현재 사용자 ID: {current_user_id}")
-        current_user = User.query.get(current_user_id)
+        current_user = db.session.get(User, current_user_id)
         print(f"현재 사용자: {current_user}")
         
         if not current_user:
@@ -226,12 +260,12 @@ def get_all_users():
 @jwt_required()
 def approve_user(user_id):
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
     
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'message': '사용자를 찾을 수 없습니다.'}), 404
     
@@ -244,12 +278,12 @@ def approve_user(user_id):
 @jwt_required()
 def reject_user(user_id):
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
     
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'message': '사용자를 찾을 수 없습니다.'}), 404
     
@@ -262,12 +296,12 @@ def reject_user(user_id):
 @jwt_required()
 def delete_user(user_id):
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
     
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'message': '사용자를 찾을 수 없습니다.'}), 404
     
@@ -301,12 +335,12 @@ def delete_user(user_id):
 @jwt_required()
 def get_user_workspace_access(user_id):
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
     
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'message': '사용자를 찾을 수 없습니다.'}), 404
     
@@ -325,12 +359,12 @@ def get_user_workspace_access(user_id):
 @jwt_required()
 def update_user_workspace_access(user_id):
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
     
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'message': '사용자를 찾을 수 없습니다.'}), 404
     
@@ -359,7 +393,7 @@ def update_user_workspace_access(user_id):
 @jwt_required()
 def get_user_workspaces():
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     # 모든 사용자(관리자 포함)는 자신에게 할당된 승인된 워크스페이스만 조회
     user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
@@ -458,7 +492,7 @@ def create_workspace_by_user():
 @jwt_required()
 def create_workspace():
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
@@ -492,7 +526,7 @@ def create_workspace():
 @jwt_required()
 def get_all_workspaces_admin():
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
@@ -515,7 +549,7 @@ def get_all_workspaces_admin():
 @jwt_required()
 def get_pending_workspaces():
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
@@ -543,12 +577,12 @@ def get_pending_workspaces():
 @jwt_required()
 def approve_workspace(workspace_id):
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
     
-    workspace = Workspace.query.get(workspace_id)
+    workspace = db.session.get(Workspace, workspace_id)
     if not workspace:
         return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
     
@@ -594,7 +628,7 @@ def get_workspace_detail(workspace_id):
         if not user_workspace:
             return jsonify({'message': '워크스페이스에 접근 권한이 없습니다.'}), 403
         
-        workspace = Workspace.query.get(workspace_id)
+        workspace = db.session.get(Workspace, workspace_id)
         if not workspace:
             return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
         
@@ -626,9 +660,9 @@ def get_workspace_detail(workspace_id):
 def update_workspace(workspace_id):
     try:
         current_user_id = int(get_jwt_identity())
-        current_user = User.query.get(current_user_id)
+        current_user = db.session.get(User, current_user_id)
         
-        workspace = Workspace.query.get(workspace_id)
+        workspace = db.session.get(Workspace, workspace_id)
         if not workspace:
             return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
         
@@ -715,7 +749,7 @@ def upload_workspace_qr_image(workspace_id):
         if not user_workspace:
             return jsonify({'message': '워크스페이스에 접근 권한이 없습니다.'}), 403
         
-        workspace = Workspace.query.get(workspace_id)
+        workspace = db.session.get(Workspace, workspace_id)
         if not workspace:
             return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
         
@@ -763,7 +797,7 @@ def leave_workspace(workspace_id):
         print(f"워크스페이스 나가기 요청 - 사용자 ID: {current_user_id}, 워크스페이스 ID: {workspace_id}")
         
         # 워크스페이스가 존재하는지 확인
-        workspace = Workspace.query.get(workspace_id)
+        workspace = db.session.get(Workspace, workspace_id)
         if not workspace:
             print(f"워크스페이스를 찾을 수 없음: {workspace_id}")
             return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
@@ -789,62 +823,98 @@ def leave_workspace(workspace_id):
         db.session.rollback()
         return jsonify({'message': '워크스페이스 나가기 중 오류가 발생했습니다.'}), 500
 
-@app.route('/api/admin/workspaces/<int:workspace_id>/qr', methods=['POST'])
+@app.route('/api/admin/workspaces/<int:workspace_id>', methods=['DELETE'])
 @jwt_required()
-def upload_qr_image(workspace_id):
+def delete_workspace(workspace_id):
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
     
-    workspace = Workspace.query.get(workspace_id)
-    if not workspace:
-        return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
-    
-    if 'qr_image' not in request.files:
-        return jsonify({'message': 'QR 이미지 파일이 필요합니다.'}), 400
-    
-    file = request.files['qr_image']
-    if file.filename == '':
-        return jsonify({'message': '파일이 선택되지 않았습니다.'}), 400
-    
-    if file:
-        # 파일 확장자 검증
-        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
-        if '.' not in file.filename or file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
-            return jsonify({'message': '지원하지 않는 파일 형식입니다.'}), 400
+    try:
+        workspace = db.session.get(Workspace, workspace_id)
+        if not workspace:
+            return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
         
-        # 파일명 생성 (타임스탬프 포함)
-        import os
-        import time
-        filename = f"qr_{workspace_id}_{int(time.time())}.{file.filename.rsplit('.', 1)[1].lower()}"
+        # 연결된 사용자 워크스페이스 관계 모두 삭제
+        UserWorkspace.query.filter_by(workspace_id=workspace_id).delete()
         
-        # static/qr 디렉토리 생성 (없는 경우)
-        qr_dir = os.path.join(os.path.dirname(__file__), 'static', 'qr')
-        if not os.path.exists(qr_dir):
-            os.makedirs(qr_dir)
+        # 연결된 공지사항들의 스케줄드 작업들 삭제
+        notices = Notice.query.filter_by(workspace_id=workspace_id).all()
+        for notice in notices:
+            # 스케줄러에서 작업 삭제
+            scheduled_jobs = ScheduledJob.query.filter_by(notice_id=notice.id).all()
+            for job in scheduled_jobs:
+                try:
+                    scheduler.remove_job(job.job_id)
+                except:
+                    pass  # 작업이 이미 없거나 오류가 있어도 무시
         
-        # 파일 저장
-        file_path = os.path.join(qr_dir, filename)
-        file.save(file_path)
+        # 스케줄드 작업 테이블에서 삭제
+        for notice in notices:
+            ScheduledJob.query.filter_by(notice_id=notice.id).delete()
         
-        # URL 생성 (절대 경로로)
-        image_url = f"http://localhost:5000/static/qr/{filename}"
+        # 공지사항들 삭제
+        Notice.query.filter_by(workspace_id=workspace_id).delete()
         
-        # 워크스페이스 업데이트
-        workspace.qr_image_url = image_url
+        # 템플릿들 삭제
+        NoticeTemplate.query.filter_by(workspace_id=workspace_id).delete()
+        
+        # QR 이미지 파일 삭제
+        if workspace.qr_image_url:
+            try:
+                import os
+                # URL에서 파일명 추출
+                filename = workspace.qr_image_url.split('/')[-1]
+                qr_dir = os.path.join(os.path.dirname(__file__), 'static', 'qr')
+                file_path = os.path.join(qr_dir, filename)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                print(f"QR 이미지 파일 삭제 실패: {e}")
+        
+        # 워크스페이스 삭제
+        db.session.delete(workspace)
         db.session.commit()
         
-        return jsonify({'imageUrl': image_url}), 200
+        return jsonify({'message': '워크스페이스가 삭제되었습니다.'})
+        
+    except Exception as e:
+        print(f"워크스페이스 삭제 오류: {str(e)}")
+        db.session.rollback()
+        return jsonify({'message': '워크스페이스 삭제 중 오류가 발생했습니다.'}), 500
 
-# 정적 파일 서빙을 위한 라우트
-@app.route('/static/qr/<filename>')
-def serve_qr_image(filename):
-    import os
-    from flask import send_from_directory
-    qr_dir = os.path.join(os.path.dirname(__file__), 'static', 'qr')
-    return send_from_directory(qr_dir, filename)
+# 사용자 할당용 워크스페이스 조회 API (승인된 워크스페이스만)
+@app.route('/api/admin/workspaces/approved', methods=['GET'])
+@jwt_required()
+def get_approved_workspaces_for_assignment():
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    
+    if not current_user.is_admin:
+        return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
+    
+    try:
+        # status가 'approved'인 워크스페이스만 조회
+        workspaces = Workspace.query.filter_by(status='approved').all()
+        
+        result = []
+        for workspace in workspaces:
+            result.append({
+                'id': workspace.id,
+                'name': workspace.name,
+                'description': workspace.description,
+                'createdBy': workspace.creator.name if workspace.creator else 'Unknown',
+                'createdAt': workspace.created_at.isoformat(),
+                'status': workspace.status
+            })
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"승인된 워크스페이스 조회 오류: {str(e)}")
+        return jsonify({'message': '워크스페이스 조회 중 오류가 발생했습니다.'}), 500
 
 # 공지사항 관리 API
 @app.route('/api/notices', methods=['POST'])
@@ -855,13 +925,16 @@ def create_notice():
     
     notice = Notice(
         type=data['type'],
+        category_id=data.get('categoryId'),
+        template_id=data.get('templateId'),
         title=data['title'],
         message=data['message'],
         workspace_id=data['workspaceId'],
         created_by=current_user_id,
         scheduled_at=datetime.fromisoformat(data['scheduledAt'].replace('Z', '+00:00')),
         no_image=data.get('noImage', False),
-        form_data=json.dumps(data.get('formData', {}))
+        form_data=json.dumps(data.get('formData', {})),
+        variable_data=json.dumps(data.get('variableData', {}))
     )
     
     db.session.add(notice)
@@ -894,7 +967,7 @@ def create_notice():
 @jwt_required()
 def get_notices():
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if current_user.is_admin:
         notices = Notice.query.all()
@@ -918,14 +991,14 @@ def get_notices():
 # 공지 전송 함수
 def send_notice(notice_id):
     with app.app_context():
-        notice = Notice.query.get(notice_id)
+        notice = db.session.get(Notice, notice_id)
         scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
         
         if not notice or not scheduled_job:
             return
         
         try:
-            workspace = Workspace.query.get(notice.workspace_id)
+            workspace = db.session.get(Workspace, notice.workspace_id)
             
             if not workspace.slack_webhook_url:
                 raise Exception("Slack Webhook URL이 설정되지 않았습니다.")
@@ -977,7 +1050,7 @@ def send_notice(notice_id):
 @jwt_required()
 def get_scheduled_jobs():
     current_user_id = int(get_jwt_identity())
-    current_user = User.query.get(current_user_id)
+    current_user = db.session.get(User, current_user_id)
     
     if not current_user.is_admin:
         return jsonify({'message': '관리자 권한이 필요합니다.'}), 403
@@ -1012,6 +1085,365 @@ def init_db():
             print("관리자 계정이 생성되었습니다.")
             print("ID: admin@day1company.co.kr")
             print("PW: Camp1017!!")
+            
+        # 기본 카테고리 생성 (이미 존재하지 않는 경우)
+        init_default_categories()
+
+def init_default_categories():
+    """기본 공지 카테고리 초기화"""
+    default_categories = [
+        {'name': '출결 공지', 'type': 'predefined', 'description': '입실, 중간, 퇴실 관련 출결 공지'},
+        {'name': '만족도 공지', 'type': 'predefined', 'description': '강의 및 모듈 만족도 조사 공지'},
+        {'name': '운영 질문 스레드', 'type': 'predefined', 'description': '운영 관련 질문 스레드 공지'},
+        {'name': '기타 공지', 'type': 'custom', 'description': '커스텀 공지 템플릿'}
+    ]
+    
+    for cat_data in default_categories:
+        existing = NoticeCategory.query.filter_by(name=cat_data['name'], workspace_id=None).first()
+        if not existing:
+            category = NoticeCategory(
+                name=cat_data['name'],
+                type=cat_data['type'],
+                description=cat_data['description'],
+                workspace_id=None  # 전역 카테고리
+            )
+            db.session.add(category)
+    
+    db.session.commit()
+
+# 템플릿 카테고리 API
+@app.route('/api/template-categories', methods=['GET'])
+@jwt_required()
+def get_template_categories():
+    current_user_id = int(get_jwt_identity())
+    workspace_id = request.args.get('workspaceId')
+    
+    if workspace_id:
+        # 특정 워크스페이스의 카테고리 + 전역 카테고리
+        categories = NoticeCategory.query.filter(
+            (NoticeCategory.workspace_id == workspace_id) | 
+            (NoticeCategory.workspace_id == None)
+        ).filter_by(is_active=True).all()
+    else:
+        # 전역 카테고리만
+        categories = NoticeCategory.query.filter_by(workspace_id=None, is_active=True).all()
+    
+    return jsonify([{
+        'id': str(cat.id),
+        'name': cat.name,
+        'type': cat.type,
+        'description': cat.description,
+        'workspaceId': cat.workspace_id,
+        'isActive': cat.is_active,
+        'createdAt': cat.created_at.isoformat(),
+        'updatedAt': cat.updated_at.isoformat()
+    } for cat in categories])
+
+@app.route('/api/template-categories', methods=['POST'])
+@jwt_required()
+def create_template_category():
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    category = NoticeCategory(
+        name=data['name'],
+        type='custom',
+        description=data.get('description'),
+        workspace_id=data['workspaceId']
+    )
+    
+    db.session.add(category)
+    db.session.commit()
+    
+    return jsonify({
+        'id': str(category.id),
+        'name': category.name,
+        'type': category.type,
+        'description': category.description,
+        'workspaceId': category.workspace_id,
+        'isActive': category.is_active,
+        'createdAt': category.created_at.isoformat(),
+        'updatedAt': category.updated_at.isoformat()
+    }), 201
+
+@app.route('/api/template-categories/<int:category_id>', methods=['PUT'])
+@jwt_required()
+def update_template_category(category_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    data = request.get_json()
+    
+    category = db.session.get(NoticeCategory, category_id)
+    if not category:
+        return jsonify({'message': '카테고리를 찾을 수 없습니다.'}), 404
+    
+    # 권한 체크 (관리자이거나 워크스페이스 소유자)
+    if not current_user.is_admin and category.workspace_id:
+        workspace = db.session.get(Workspace, category.workspace_id)
+        if not workspace or workspace.created_by != current_user_id:
+            return jsonify({'message': '권한이 없습니다.'}), 403
+    
+    if 'name' in data:
+        category.name = data['name']
+    if 'description' in data:
+        category.description = data['description']
+    
+    category.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({
+        'id': str(category.id),
+        'name': category.name,
+        'type': category.type,
+        'description': category.description,
+        'workspaceId': category.workspace_id,
+        'isActive': category.is_active,
+        'createdAt': category.created_at.isoformat(),
+        'updatedAt': category.updated_at.isoformat()
+    })
+
+@app.route('/api/template-categories/<int:category_id>', methods=['DELETE'])
+@jwt_required()
+def delete_template_category(category_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    
+    category = db.session.get(NoticeCategory, category_id)
+    if not category:
+        return jsonify({'message': '카테고리를 찾을 수 없습니다.'}), 404
+    
+    # 권한 체크
+    if not current_user.is_admin and category.workspace_id:
+        workspace = db.session.get(Workspace, category.workspace_id)
+        if not workspace or workspace.created_by != current_user_id:
+            return jsonify({'message': '권한이 없습니다.'}), 403
+    
+    # 전역 카테고리는 삭제할 수 없음
+    if not category.workspace_id:
+        return jsonify({'message': '전역 카테고리는 삭제할 수 없습니다.'}), 400
+    
+    category.is_active = False
+    category.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    return '', 204
+
+# 공지 템플릿 API
+@app.route('/api/notice-templates', methods=['GET'])
+@jwt_required()
+def get_notice_templates():
+    current_user_id = int(get_jwt_identity())
+    workspace_id = request.args.get('workspaceId')
+    category_id = request.args.get('categoryId')
+    
+    query = NoticeTemplate.query
+    
+    if workspace_id:
+        query = query.filter_by(workspace_id=workspace_id)
+    
+    if category_id:
+        query = query.filter_by(category_id=category_id)
+    
+    templates = query.all()
+    
+    return jsonify([{
+        'id': str(template.id),
+        'categoryId': str(template.category_id),
+        'name': template.name,
+        'title': template.title,
+        'content': template.content,
+        'workspaceId': str(template.workspace_id),
+        'variables': json.loads(template.variables) if template.variables else [],
+        'isDefault': template.is_default,
+        'createdBy': str(template.created_by),
+        'createdAt': template.created_at.isoformat(),
+        'updatedAt': template.updated_at.isoformat()
+    } for template in templates])
+
+@app.route('/api/notice-templates/<int:template_id>', methods=['GET'])
+@jwt_required()
+def get_notice_template(template_id):
+    current_user_id = int(get_jwt_identity())
+    
+    template = db.session.get(NoticeTemplate, template_id)
+    if not template:
+        return jsonify({'message': '템플릿을 찾을 수 없습니다.'}), 404
+    
+    return jsonify({
+        'id': str(template.id),
+        'categoryId': str(template.category_id),
+        'name': template.name,
+        'title': template.title,
+        'content': template.content,
+        'workspaceId': str(template.workspace_id),
+        'variables': json.loads(template.variables) if template.variables else [],
+        'isDefault': template.is_default,
+        'createdBy': str(template.created_by),
+        'createdAt': template.created_at.isoformat(),
+        'updatedAt': template.updated_at.isoformat()
+    })
+
+@app.route('/api/notice-templates', methods=['POST'])
+@jwt_required()
+def create_notice_template():
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    template = NoticeTemplate(
+        category_id=data['categoryId'],
+        name=data['name'],
+        title=data['title'],
+        content=data['content'],
+        workspace_id=data['workspaceId'],
+        variables=json.dumps(data.get('variables', [])),
+        is_default=data.get('isDefault', False),
+        created_by=current_user_id
+    )
+    
+    db.session.add(template)
+    db.session.commit()
+    
+    return jsonify({
+        'id': str(template.id),
+        'categoryId': str(template.category_id),
+        'name': template.name,
+        'title': template.title,
+        'content': template.content,
+        'workspaceId': str(template.workspace_id),
+        'variables': json.loads(template.variables) if template.variables else [],
+        'isDefault': template.is_default,
+        'createdBy': str(template.created_by),
+        'createdAt': template.created_at.isoformat(),
+        'updatedAt': template.updated_at.isoformat()
+    }), 201
+
+@app.route('/api/notice-templates/<int:template_id>', methods=['PUT'])
+@jwt_required()
+def update_notice_template(template_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    data = request.get_json()
+    
+    template = db.session.get(NoticeTemplate, template_id)
+    if not template:
+        return jsonify({'message': '템플릿을 찾을 수 없습니다.'}), 404
+    
+    # 권한 체크 (관리자이거나 생성자이거나 워크스페이스 소유자)
+    workspace = db.session.get(Workspace, template.workspace_id)
+    if not current_user.is_admin and template.created_by != current_user_id and workspace.created_by != current_user_id:
+        return jsonify({'message': '권한이 없습니다.'}), 403
+    
+    if 'name' in data:
+        template.name = data['name']
+    if 'title' in data:
+        template.title = data['title']
+    if 'content' in data:
+        template.content = data['content']
+    if 'variables' in data:
+        template.variables = json.dumps(data['variables'])
+    if 'isDefault' in data:
+        template.is_default = data['isDefault']
+    
+    template.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({
+        'id': str(template.id),
+        'categoryId': str(template.category_id),
+        'name': template.name,
+        'title': template.title,
+        'content': template.content,
+        'workspaceId': str(template.workspace_id),
+        'variables': json.loads(template.variables) if template.variables else [],
+        'isDefault': template.is_default,
+        'createdBy': str(template.created_by),
+        'createdAt': template.created_at.isoformat(),
+        'updatedAt': template.updated_at.isoformat()
+    })
+
+@app.route('/api/notice-templates/<int:template_id>', methods=['DELETE'])
+@jwt_required()
+def delete_notice_template(template_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    
+    template = db.session.get(NoticeTemplate, template_id)
+    if not template:
+        return jsonify({'message': '템플릿을 찾을 수 없습니다.'}), 404
+    
+    # 권한 체크
+    workspace = db.session.get(Workspace, template.workspace_id)
+    if not current_user.is_admin and template.created_by != current_user_id and workspace.created_by != current_user_id:
+        return jsonify({'message': '권한이 없습니다.'}), 403
+    
+    db.session.delete(template)
+    db.session.commit()
+    
+    return '', 204
+
+@app.route('/api/notice-templates/<int:template_id>/preview', methods=['POST'])
+@jwt_required()
+def preview_template(template_id):
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    template = db.session.get(NoticeTemplate, template_id)
+    if not template:
+        return jsonify({'message': '템플릿을 찾을 수 없습니다.'}), 404
+    
+    workspace = db.session.get(Workspace, data['workspaceId'])
+    if not workspace:
+        return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+    
+    # 변수 치환
+    variable_data = data.get('variableData', {})
+    
+    # 워크스페이스 변수값 설정
+    workspace_variables = {
+        'name': workspace.name,
+        'checkin_time': workspace.checkin_time.strftime('%H:%M') if workspace.checkin_time else '09:00',
+        'middle_time': workspace.middle_time.strftime('%H:%M') if workspace.middle_time else '13:00',
+        'checkout_time': workspace.checkout_time.strftime('%H:%M') if workspace.checkout_time else '18:00',
+        'zoom_url': workspace.zoom_url or '',
+        'zoom_id': workspace.zoom_id or '',
+        'zoom_password': workspace.zoom_password or '',
+        'current_date': datetime.now().strftime('%Y-%m-%d'),
+        'current_date_kr': f'{datetime.now().month}월 {datetime.now().day}일',
+        'current_time': datetime.now().strftime('%H:%M'),
+    }
+    
+    # 시간 계산 함수
+    def subtract_minutes(time_str, minutes):
+        from datetime import datetime, timedelta
+        time_obj = datetime.strptime(time_str, '%H:%M')
+        new_time = time_obj - timedelta(minutes=minutes)
+        return new_time.strftime('%H:%M')
+    
+    def add_minutes(time_str, minutes):
+        from datetime import datetime, timedelta
+        time_obj = datetime.strptime(time_str, '%H:%M')
+        new_time = time_obj + timedelta(minutes=minutes)
+        return new_time.strftime('%H:%M')
+    
+    workspace_variables['checkin_time_minus_10'] = subtract_minutes(workspace_variables['checkin_time'], 10)
+    workspace_variables['checkout_time_plus_10'] = add_minutes(workspace_variables['checkout_time'], 10)
+    
+    # 모든 변수 합치기
+    all_variables = {**workspace_variables, **variable_data}
+    
+    # 템플릿 치환
+    title = template.title
+    content = template.content
+    
+    for key, value in all_variables.items():
+        placeholder = f'{{{key}}}'
+        title = title.replace(placeholder, str(value) if value else '')
+        content = content.replace(placeholder, str(value) if value else '')
+    
+    return jsonify({
+        'title': title,
+        'content': content
+    })
 
 if __name__ == '__main__':
     init_db()

@@ -135,7 +135,7 @@ const WorkspaceSelectionPage: React.FC = () => {
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
                   </div>
                 </div>
                 

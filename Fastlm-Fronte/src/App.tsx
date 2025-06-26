@@ -26,9 +26,8 @@ import ScheduledJobsPage from './pages/Admin/ScheduledJobsPage';
 import WorkspaceApprovalPage from './pages/Admin/WorkspaceApprovalPage';
 
 // Notice Pages
-import AttendanceNoticePage from './pages/Notices/AttendanceNoticePage';
-import SatisfactionNoticePage from './pages/Notices/SatisfactionNoticePage';
-import ThreadNoticePage from './pages/Notices/ThreadNoticePage';
+import CustomNoticePage from './pages/Notices/CustomNoticePage';
+import NoticeCustomizePage from './pages/Notices/NoticeCustomizePage';
 import NoticeManagementPage from './pages/Notices/NoticeManagementPage';
 import NoticeCalendarPage from './pages/Notices/NoticeCalendarPage';
 
@@ -71,7 +70,7 @@ function App() {
                   <BotSettingPage />
                 </ProtectedRoute>
               } />
-
+              
               {/* Workspace Routes - 모든 사용자 접근 가능 */}
               <Route path="/workspace/register" element={
                 <ProtectedRoute>
@@ -86,21 +85,15 @@ function App() {
               } />
               
               {/* Notice Routes */}
-              <Route path="/notices/attendance" element={
+              <Route path="/notices/schedule" element={
                 <ProtectedRoute>
-                  <AttendanceNoticePage />
+                  <CustomNoticePage />
                 </ProtectedRoute>
               } />
               
-              <Route path="/notices/satisfaction" element={
+              <Route path="/notices/customize" element={
                 <ProtectedRoute>
-                  <SatisfactionNoticePage />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/notices/thread" element={
-                <ProtectedRoute>
-                  <ThreadNoticePage />
+                  <NoticeCustomizePage />
                 </ProtectedRoute>
               } />
               
@@ -154,7 +147,7 @@ function App() {
                   <WorkspaceManagementPage />
                 </ProtectedRoute>
               } />
-
+              
               <Route path="/admin/workspace/approval" element={
                 <ProtectedRoute requireAdmin>
                   <WorkspaceApprovalPage />

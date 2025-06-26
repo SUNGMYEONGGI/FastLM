@@ -11,12 +11,11 @@ const DashboardPage: React.FC = () => {
   const menuItems = [
     {
       title: '공지사항 관리',
-      description: '출결, 만족도, 스레드 공지를 관리합니다',
+      description: '공지 예약, 커스터마이징, 관리를 수행합니다',
       icon: '📢',
       links: [
-        { name: '출결 공지', path: '/notices/attendance' },
-        { name: '만족도 공지', path: '/notices/satisfaction' },
-        { name: '운영 질문 스레드', path: '/notices/thread' },
+        { name: '공지 예약', path: '/notices/schedule' },
+        { name: '공지 커스터마이징', path: '/notices/customize' },
         { name: '공지 관리', path: '/notices/manage' },
         { name: '공지 캘린더', path: '/notices/calendar' }
       ]
@@ -154,18 +153,18 @@ const DashboardPage: React.FC = () => {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">빠른 액션</h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Link
-                to="/notices/attendance"
+                to="/notices/schedule"
                 className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
               >
                 <span className="text-2xl mb-2">📝</span>
-                <span className="text-sm font-medium text-gray-900">출결 공지</span>
+                <span className="text-sm font-medium text-gray-900">공지 예약</span>
               </Link>
               <Link
-                to="/notices/satisfaction"
+                to="/notices/customize"
                 className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
               >
-                <span className="text-2xl mb-2">📋</span>
-                <span className="text-sm font-medium text-gray-900">만족도 공지</span>
+                <span className="text-2xl mb-2">🛠️</span>
+                <span className="text-sm font-medium text-gray-900">공지 커스터마이징</span>
               </Link>
               <Link
                 to="/notices/manage"
@@ -202,12 +201,16 @@ const DashboardPage: React.FC = () => {
                 </span>
               </div>
               <div>
-                <span className="font-medium text-gray-700">로그인 상태:</span>
-                <span className="ml-2 text-green-600">활성</span>
+                <span className="font-medium text-gray-700">선택된 워크스페이스:</span>
+                <span className="ml-2 text-gray-600">
+                  {selectedWorkspace ? selectedWorkspace.name : '없음'}
+                </span>
               </div>
               <div>
-                <span className="font-medium text-gray-700">버전:</span>
-                <span className="ml-2 text-gray-600">FastLM v2.0</span>
+                <span className="font-medium text-gray-700">마지막 로그인:</span>
+                <span className="ml-2 text-gray-600">
+                  {new Date().toLocaleString('ko-KR')}
+                </span>
               </div>
             </div>
           </div>

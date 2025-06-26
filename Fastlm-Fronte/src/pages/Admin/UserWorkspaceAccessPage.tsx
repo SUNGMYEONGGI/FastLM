@@ -24,6 +24,7 @@ const UserWorkspaceAccessPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
+      console.log('🔍 데이터 로딩 시작, userId:', userId);
       
       // 모든 사용자 가져오기
       const users = await userAPI.getAllUsers();
@@ -35,20 +36,39 @@ const UserWorkspaceAccessPage: React.FC = () => {
         return;
       }
       
+      console.log('👤 대상 사용자:', targetUser);
       setUser(targetUser);
       
-      // 모든 워크스페이스 가져오기
-      const workspaces = await workspaceAPI.getAllWorkspaces();
+      // 승인된 워크스페이스만 가져오기 (거절된 워크스페이스 제외)
+      const workspaces = await workspaceAPI.getApprovedWorkspaces();
+      console.log('🏢 승인된 워크스페이스 목록:', workspaces);
       setAllWorkspaces(workspaces);
       
-      // 사용자가 접근 권한을 가진 워크스페이스 설정
-      setSelectedWorkspaces(new Set(targetUser.workspaces));
+      // 사용자의 현재 워크스페이스 할당 정보 가져오기
+      try {
+        if (userId) {
+          console.log('📋 사용자 워크스페이스 할당 정보 조회 중...');
+          const userWorkspaces = await userAPI.getUserWorkspaceAccess(userId);
+          console.log('📋 API 응답 - 할당된 워크스페이스:', userWorkspaces);
+          
+          const assignedWorkspaceIds = userWorkspaces.map(ws => ws.id.toString());
+          console.log('📋 할당된 워크스페이스 ID 목록:', assignedWorkspaceIds);
+          
+          setSelectedWorkspaces(new Set(assignedWorkspaceIds));
+          console.log('✅ selectedWorkspaces 상태 설정 완료');
+        }
+      } catch (error) {
+        console.error('❌ 사용자 워크스페이스 할당 정보 조회 실패:', error);
+        setSelectedWorkspaces(new Set());
+      }
       
     } catch (error) {
+      console.error('❌ 전체 데이터 로딩 실패:', error);
       toast.error('데이터를 불러오는데 실패했습니다');
       navigate('/admin/users');
     } finally {
       setLoading(false);
+      console.log('🔍 데이터 로딩 완료');
     }
   };
 
@@ -121,26 +141,50 @@ const UserWorkspaceAccessPage: React.FC = () => {
                   <p className="text-gray-500">등록된 워크스페이스가 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
-                    {allWorkspaces.map((workspace) => (
-                      <div key={workspace.id} className="flex items-center">
-                        <input
-                          id={`workspace-${workspace.id}`}
-                          type="checkbox"
-                          checked={selectedWorkspaces.has(workspace.id)}
-                          onChange={() => handleWorkspaceToggle(workspace.id)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label
-                          htmlFor={`workspace-${workspace.id}`}
-                          className="ml-3 block text-sm text-gray-900"
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        💡 체크된 워크스페이스는 이 사용자가 접근할 수 있는 워크스페이스입니다.
+                      </p>
+                    </div>
+                    {allWorkspaces.map((workspace) => {
+                      const isAssigned = selectedWorkspaces.has(workspace.id.toString());
+                      return (
+                        <div 
+                          key={workspace.id} 
+                          className={`flex items-center p-3 rounded-lg border transition-colors ${
+                            isAssigned 
+                              ? 'bg-blue-50 border-blue-200' 
+                              : 'bg-white border-gray-200 hover:bg-gray-50'
+                          }`}
                         >
-                          <div className="font-medium">{workspace.name}</div>
-                          {workspace.description && (
-                            <div className="text-gray-500">{workspace.description}</div>
-                          )}
-                        </label>
-                      </div>
-                    ))}
+                          <input
+                            id={`workspace-${workspace.id}`}
+                            type="checkbox"
+                            checked={isAssigned}
+                            onChange={() => handleWorkspaceToggle(workspace.id.toString())}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label
+                            htmlFor={`workspace-${workspace.id}`}
+                            className="ml-3 flex-1 cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-gray-900">{workspace.name}</div>
+                                {workspace.description && (
+                                  <div className="text-sm text-gray-500">{workspace.description}</div>
+                                )}
+                              </div>
+                              {isAssigned && (
+                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  할당됨
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

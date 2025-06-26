@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   UserCheck, 
@@ -8,7 +9,8 @@ import {
   Search,
   Filter,
   MoreVertical,
-  Shield
+  Shield,
+  X
 } from 'lucide-react';
 import Layout from '../../components/Layout/Layout';
 import { userAPI, workspaceAPI } from '../../services/api';
@@ -25,6 +27,9 @@ const UserManagementPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [selectedWorkspaces, setSelectedWorkspaces] = useState<string[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -95,10 +100,41 @@ const UserManagementPage: React.FC = () => {
     }
   };
 
-  const openWorkspaceModal = (user: User) => {
+  const openWorkspaceModal = async (user: User) => {
+    console.log('🔍 워크스페이스 모달 열기, 사용자:', user);
     setSelectedUser(user);
-    setSelectedWorkspaces(user.workspaces || []);
     setShowWorkspaceModal(true);
+    setModalLoading(true);
+    
+    try {
+      // 승인된 워크스페이스만 가져오기
+      const approvedWorkspaces = await workspaceAPI.getApprovedWorkspaces();
+      console.log('🏢 승인된 워크스페이스:', approvedWorkspaces);
+      setWorkspaces(approvedWorkspaces);
+      
+      // 사용자의 현재 워크스페이스 할당 정보 가져오기
+      const userWorkspaces = await userAPI.getUserWorkspaceAccess(user.id);
+      console.log('📋 사용자 할당된 워크스페이스:', userWorkspaces);
+      
+      const assignedWorkspaceIds = userWorkspaces.map(ws => ws.id.toString());
+      console.log('📋 할당된 워크스페이스 ID 목록:', assignedWorkspaceIds);
+      
+      setSelectedWorkspaces(assignedWorkspaceIds);
+    } catch (error) {
+      console.error('❌ 워크스페이스 정보 로드 실패:', error);
+      toast.error('워크스페이스 정보를 불러오는데 실패했습니다');
+      // 기본값으로 빈 배열 설정
+      setSelectedWorkspaces([]);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const closeWorkspaceModal = () => {
+    setShowWorkspaceModal(false);
+    setSelectedUser(null);
+    setSelectedWorkspaces([]);
+    setModalLoading(false);
   };
 
   const getUserStatus = (user: User): string => {
@@ -319,50 +355,96 @@ const UserManagementPage: React.FC = () => {
         {/* Workspace Assignment Modal */}
         {showWorkspaceModal && selectedUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                워크스페이스 할당 - {selectedUser.name}
-              </h3>
-              
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                {workspaces.map((workspace) => (
-                  <label key={workspace.id} className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedWorkspaces.includes(workspace.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedWorkspaces([...selectedWorkspaces, workspace.id]);
-                        } else {
-                          setSelectedWorkspaces(selectedWorkspaces.filter(id => id !== workspace.id));
-                        }
-                      }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-900">{workspace.name}</div>
-                      <div className="text-xs text-gray-500">{workspace.description}</div>
-                    </div>
-                  </label>
-                ))}
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  워크스페이스 할당 - {selectedUser.name}
+                </h3>
+                <button
+                  onClick={closeWorkspaceModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
               
-              <div className="flex justify-end space-x-3 mt-6">
+              {modalLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-gray-600">정보를 불러오는 중...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      💡 체크된 워크스페이스는 이 사용자가 접근할 수 있는 워크스페이스입니다.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {workspaces.length === 0 ? (
+                      <p className="text-gray-500 text-center py-4">승인된 워크스페이스가 없습니다.</p>
+                    ) : (
+                      workspaces.map((workspace) => {
+                        const isAssigned = selectedWorkspaces.includes(workspace.id.toString());
+                        return (
+                          <div
+                            key={workspace.id}
+                            className={`flex items-center p-3 rounded-lg border transition-colors ${
+                              isAssigned 
+                                ? 'bg-blue-50 border-blue-200' 
+                                : 'bg-white border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedWorkspaces([...selectedWorkspaces, workspace.id.toString()]);
+                                } else {
+                                  setSelectedWorkspaces(selectedWorkspaces.filter(id => id !== workspace.id.toString()));
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <div className="ml-3 flex-1">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">{workspace.name}</div>
+                                  {workspace.description && (
+                                    <div className="text-xs text-gray-500">{workspace.description}</div>
+                                  )}
+                                </div>
+                                {isAssigned && (
+                                  <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    할당됨
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              )}
+              
+              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
                 <button
-                  onClick={() => {
-                    setShowWorkspaceModal(false);
-                    setSelectedUser(null);
-                    setSelectedWorkspaces([]);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                  onClick={closeWorkspaceModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  disabled={modalLoading}
                 >
                   취소
                 </button>
                 <button
                   onClick={handleAssignWorkspaces}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
+                  disabled={modalLoading}
                 >
-                  할당
+                  저장
                 </button>
               </div>
             </div>
