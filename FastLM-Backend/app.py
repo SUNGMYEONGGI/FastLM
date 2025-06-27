@@ -44,6 +44,7 @@ class Workspace(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
+    slack_webhook_name = db.Column(db.String(100), default='기본 슬랙')  # 슬랙 웹훅 이름
     slack_webhook_url = db.Column(db.String(500))
     webhook_urls = db.Column(db.Text)  # JSON 형태로 저장
     checkin_time = db.Column(db.Time)  # 입실 시간
@@ -85,6 +86,7 @@ class Notice(db.Model):
     no_image = db.Column(db.Boolean, default=False)
     form_data = db.Column(db.Text)  # JSON 형태로 저장
     variable_data = db.Column(db.Text)  # JSON 형태로 저장 (템플릿 변수값)
+    selected_webhook_url = db.Column(db.String(500))  # 선택된 웹훅 URL
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     sent_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)
@@ -410,6 +412,7 @@ def get_user_workspaces():
         'id': ws.id,
         'name': ws.name,
         'description': ws.description,
+        'slackWebhookName': ws.slack_webhook_name,
         'slackWebhookUrl': ws.slack_webhook_url,
         'webhookUrls': json.loads(ws.webhook_urls) if ws.webhook_urls else [],
         'checkinTime': ws.checkin_time.strftime('%H:%M') if ws.checkin_time else None,
@@ -450,6 +453,7 @@ def create_workspace_by_user():
         workspace = Workspace(
             name=data['name'],
             description=data.get('description', ''),
+            slack_webhook_name=data.get('slackWebhookName', '기본 슬랙'),
             slack_webhook_url=data.get('slackWebhookUrl', ''),
             webhook_urls=webhook_urls,
             checkin_time=checkin_time,
@@ -469,6 +473,7 @@ def create_workspace_by_user():
             'id': workspace.id,
             'name': workspace.name,
             'description': workspace.description,
+            'slackWebhookName': workspace.slack_webhook_name,
             'slackWebhookUrl': workspace.slack_webhook_url,
             'webhookUrls': json.loads(workspace.webhook_urls) if workspace.webhook_urls else [],
             'checkinTime': workspace.checkin_time.strftime('%H:%M') if workspace.checkin_time else None,
@@ -502,6 +507,7 @@ def create_workspace():
     workspace = Workspace(
         name=data['name'],
         description=data.get('description'),
+        slack_webhook_name=data.get('slackWebhookName', '기본 슬랙'),
         slack_webhook_url=data.get('slackWebhookUrl'),
         created_by=current_user_id,
         status='approved'  # 관리자가 직접 생성하는 경우 즉시 승인
@@ -514,6 +520,7 @@ def create_workspace():
         'id': workspace.id,
         'name': workspace.name,
         'description': workspace.description,
+        'slackWebhookName': workspace.slack_webhook_name,
         'slackWebhookUrl': workspace.slack_webhook_url,
         'qrImageUrl': workspace.qr_image_url,
         'status': workspace.status,
@@ -537,6 +544,7 @@ def get_all_workspaces_admin():
         'id': ws.id,
         'name': ws.name,
         'description': ws.description,
+        'slackWebhookName': ws.slack_webhook_name,
         'slackWebhookUrl': ws.slack_webhook_url,
         'qrImageUrl': ws.qr_image_url,
         'status': ws.status,
@@ -565,6 +573,7 @@ def get_pending_workspaces():
         'id': ws.id,
         'name': ws.name,
         'description': ws.description,
+        'slackWebhookName': ws.slack_webhook_name,
         'slackWebhookUrl': ws.slack_webhook_url,
         'qrImageUrl': ws.qr_image_url,
         'status': ws.status,
@@ -636,6 +645,7 @@ def get_workspace_detail(workspace_id):
             'id': workspace.id,
             'name': workspace.name,
             'description': workspace.description,
+            'slackWebhookName': workspace.slack_webhook_name,
             'slackWebhookUrl': workspace.slack_webhook_url,
             'webhookUrls': json.loads(workspace.webhook_urls) if workspace.webhook_urls else [],
             'checkinTime': workspace.checkin_time.strftime('%H:%M') if workspace.checkin_time else None,
@@ -676,6 +686,12 @@ def update_workspace(workspace_id):
         if 'webhookUrls' in data:
             workspace.webhook_urls = json.dumps(data['webhookUrls'])
         
+        # 슬랙 웹훅 관련 필드 업데이트
+        if 'slackWebhookName' in data:
+            workspace.slack_webhook_name = data['slackWebhookName']
+        if 'slackWebhookUrl' in data:
+            workspace.slack_webhook_url = data['slackWebhookUrl']
+        
         # 시간 형식 변환
         if 'checkinTime' in data and data['checkinTime']:
             workspace.checkin_time = datetime.strptime(data['checkinTime'], '%H:%M').time()
@@ -697,8 +713,6 @@ def update_workspace(workspace_id):
             workspace.name = data['name']
         if 'description' in data:
             workspace.description = data['description']
-        if 'slackWebhookUrl' in data:
-            workspace.slack_webhook_url = data['slackWebhookUrl']
         if 'zoomUrl' in data:
             workspace.zoom_url = data['zoomUrl']
         if 'zoomId' in data:
@@ -714,6 +728,7 @@ def update_workspace(workspace_id):
             'id': workspace.id,
             'name': workspace.name,
             'description': workspace.description,
+            'slackWebhookName': workspace.slack_webhook_name,
             'slackWebhookUrl': workspace.slack_webhook_url,
             'webhookUrls': json.loads(workspace.webhook_urls) if workspace.webhook_urls else [],
             'checkinTime': workspace.checkin_time.strftime('%H:%M') if workspace.checkin_time else None,
@@ -934,7 +949,8 @@ def create_notice():
         scheduled_at=datetime.fromisoformat(data['scheduledAt'].replace('Z', '+00:00')),
         no_image=data.get('noImage', False),
         form_data=json.dumps(data.get('formData', {})),
-        variable_data=json.dumps(data.get('variableData', {}))
+        variable_data=json.dumps(data.get('variableData', {})),
+        selected_webhook_url=data.get('selectedWebhookUrl')  # 선택된 웹훅 URL 저장
     )
     
     db.session.add(notice)
@@ -1000,8 +1016,11 @@ def send_notice(notice_id):
         try:
             workspace = db.session.get(Workspace, notice.workspace_id)
             
-            if not workspace.slack_webhook_url:
-                raise Exception("Slack Webhook URL이 설정되지 않았습니다.")
+            # 선택된 웹훅 URL이 있으면 우선 사용, 없으면 기본 슬랙 웹훅 URL 사용
+            webhook_url = notice.selected_webhook_url or workspace.slack_webhook_url
+            
+            if not webhook_url:
+                raise Exception("발송할 웹훅 URL이 설정되지 않았습니다.")
             
             # Slack 메시지 구성
             slack_data = {
@@ -1025,8 +1044,8 @@ def send_notice(notice_id):
                     "alt_text": "QR Code"
                 })
             
-            # Slack으로 전송
-            response = requests.post(workspace.slack_webhook_url, json=slack_data)
+            # 선택된 웹훅으로 전송
+            response = requests.post(webhook_url, json=slack_data)
             response.raise_for_status()
             
             # 성공 처리

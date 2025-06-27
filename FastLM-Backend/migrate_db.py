@@ -49,6 +49,36 @@ def migrate_database():
             else:
                 print(f"❌ variable_data 컬럼 추가 실패: {e}")
         
+        # selected_webhook_url 컬럼 추가
+        try:
+            cursor.execute('ALTER TABLE notice ADD COLUMN selected_webhook_url VARCHAR(500)')
+            print("✅ selected_webhook_url 컬럼 추가 완료")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e):
+                print("⚠️ selected_webhook_url 컬럼 이미 존재")
+            else:
+                print(f"❌ selected_webhook_url 컬럼 추가 실패: {e}")
+        
+        # Workspace 테이블에 누락된 컬럼들 추가
+        print("Workspace 테이블 업데이트 중...")
+        
+        # slack_webhook_name 컬럼 추가
+        try:
+            cursor.execute('ALTER TABLE workspace ADD COLUMN slack_webhook_name VARCHAR(100) DEFAULT "기본 슬랙"')
+            print("✅ slack_webhook_name 컬럼 추가 완료")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e):
+                print("⚠️ slack_webhook_name 컬럼 이미 존재")
+            else:
+                print(f"❌ slack_webhook_name 컬럼 추가 실패: {e}")
+        
+        # 기존 워크스페이스들의 slack_webhook_name을 기본값으로 업데이트
+        try:
+            cursor.execute('UPDATE workspace SET slack_webhook_name = "기본 슬랙" WHERE slack_webhook_name IS NULL')
+            print("✅ 기존 워크스페이스의 slack_webhook_name 기본값 설정 완료")
+        except sqlite3.OperationalError as e:
+            print(f"⚠️ slack_webhook_name 기본값 설정 실패: {e}")
+        
         # 외래 키 제약 조건 추가 (SQLite에서는 기존 테이블에 FK 추가가 어려우므로 건너뜀)
         print("⚠️ 외래 키 제약 조건은 SQLite 제한으로 인해 건너뜀")
         
@@ -59,6 +89,12 @@ def migrate_database():
         # 최종 스키마 확인
         print("\n=== 최종 Notice 테이블 스키마 ===")
         cursor.execute('PRAGMA table_info(notice)')
+        columns = cursor.fetchall()
+        for column in columns:
+            print(f"  {column[1]} ({column[2]})")
+        
+        print("\n=== 최종 Workspace 테이블 스키마 ===")
+        cursor.execute('PRAGMA table_info(workspace)')
         columns = cursor.fetchall()
         for column in columns:
             print(f"  {column[1]} ({column[2]})")

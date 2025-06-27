@@ -25,6 +25,7 @@ const CustomNoticePage: React.FC = () => {
   // 미리보기 상태
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewContent, setPreviewContent] = useState('');
+  const [selectedWebhook, setSelectedWebhook] = useState(''); // 선택된 웹훅
 
   useEffect(() => {
     if (selectedWorkspace) {
@@ -294,16 +295,17 @@ const CustomNoticePage: React.FC = () => {
 
         return noticeAPI.createNotice({
           type: 'custom',
-          categoryId: selectedCategory,
+          categoryId: parseInt(selectedCategory),
           templateId: selectedTemplate.id,
           title: previewTitle,
           message: previewContent,
-          workspaceId: selectedWorkspace.id.toString(),
-          scheduledAt,
+          workspaceId: selectedWorkspace.id,
+          scheduledAt: scheduledDateTime,
           status: 'scheduled',
           createdBy: 'current-user', // TODO: 실제 사용자 ID로 교체
           noImage: !includeQRImage, // QR 이미지 첨부 여부
-          variableData: variableValues
+          variableData: variableValues,
+          selectedWebhookUrl: getSelectedWebhookUrl() // 선택된 웹훅 URL 전달
         });
       });
 
@@ -321,6 +323,37 @@ const CustomNoticePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getAvailableWebhooks = () => {
+    if (!selectedWorkspace) return [];
+    
+    const webhooks: { name: string; url: string }[] = [];
+    
+    // 기본 슬랙 웹훅
+    if (selectedWorkspace.slackWebhookUrl) {
+      const slackWebhookName = (selectedWorkspace as any).slackWebhookName || '기본 슬랙';
+      webhooks.push({ name: slackWebhookName, url: selectedWorkspace.slackWebhookUrl });
+    }
+    
+    // 추가 웹훅들
+    if (selectedWorkspace.webhookUrls && selectedWorkspace.webhookUrls.length > 0) {
+      selectedWorkspace.webhookUrls.forEach((webhook: any) => {
+        if (typeof webhook === 'object' && webhook.name && webhook.url) {
+          webhooks.push(webhook);
+        } else if (typeof webhook === 'string' && webhook.trim()) {
+          webhooks.push({ name: `웹훅 ${webhooks.length + 1}`, url: webhook });
+        }
+      });
+    }
+    
+    return webhooks;
+  };
+
+  const getSelectedWebhookUrl = () => {
+    const webhooks = getAvailableWebhooks();
+    const selected = webhooks.find(w => w.name === selectedWebhook);
+    return selected?.url || selectedWorkspace?.slackWebhookUrl || '';
   };
 
   if (!selectedWorkspace) {
@@ -553,6 +586,31 @@ const CustomNoticePage: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1 ml-6">
                     체크하면 워크스페이스의 QR 이미지가 공지와 함께 전송됩니다
                   </p>
+                </div>
+
+                {/* 웹훅 선택 */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    발송할 웹훅 선택 *
+                  </label>
+                  <select
+                    value={selectedWebhook}
+                    onChange={(e) => setSelectedWebhook(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">웹훅을 선택하세요</option>
+                    {getAvailableWebhooks().map((webhook, index) => (
+                      <option key={index} value={webhook.name}>
+                        {webhook.name}
+                      </option>
+                    ))}
+                  </select>
+                  {getAvailableWebhooks().length === 0 && (
+                    <p className="mt-1 text-sm text-red-600">
+                      등록된 웹훅이 없습니다. 워크스페이스 설정에서 웹훅을 등록해주세요.
+                    </p>
+                  )}
                 </div>
               </div>
 

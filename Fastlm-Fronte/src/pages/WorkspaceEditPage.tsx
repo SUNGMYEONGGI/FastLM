@@ -14,8 +14,9 @@ const WorkspaceEditPage: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    slackWebhookName: '기본 슬랙',
     slackWebhookUrl: '',
-    webhookUrls: [''],
+    webhookUrls: [{ name: '', url: '' }],
     checkinTime: '',
     middleTime: '',
     checkoutTime: '',
@@ -39,10 +40,13 @@ const WorkspaceEditPage: React.FC = () => {
       setFormData({
         name: workspaceData.name || '',
         description: workspaceData.description || '',
+        slackWebhookName: workspaceData.slackWebhookName || '기본 슬랙',
         slackWebhookUrl: workspaceData.slackWebhookUrl || '',
         webhookUrls: workspaceData.webhookUrls && workspaceData.webhookUrls.length > 0 
-          ? workspaceData.webhookUrls 
-          : [''],
+          ? (Array.isArray(workspaceData.webhookUrls) && typeof workspaceData.webhookUrls[0] === 'object' 
+             ? workspaceData.webhookUrls as { name: string; url: string; }[]
+             : (workspaceData.webhookUrls as unknown as string[]).map(url => ({ name: '', url })))
+          : [{ name: '', url: '' }],
         checkinTime: workspaceData.checkinTime || '',
         middleTime: workspaceData.middleTime || '',
         checkoutTime: workspaceData.checkoutTime || '',
@@ -55,7 +59,7 @@ const WorkspaceEditPage: React.FC = () => {
       }
     } catch (error: any) {
       alert(`워크스페이스 로드 실패: ${error.message}`);
-      navigate('/workspace/selection');
+      navigate('/workspace');
     } finally {
       setLoadingWorkspace(false);
     }
@@ -69,9 +73,9 @@ const WorkspaceEditPage: React.FC = () => {
     }));
   };
 
-  const handleWebhookUrlChange = (index: number, value: string) => {
+  const handleWebhookChange = (index: number, field: 'name' | 'url', value: string) => {
     const newWebhookUrls = [...formData.webhookUrls];
-    newWebhookUrls[index] = value;
+    newWebhookUrls[index] = { ...newWebhookUrls[index], [field]: value };
     setFormData(prev => ({
       ...prev,
       webhookUrls: newWebhookUrls
@@ -81,7 +85,7 @@ const WorkspaceEditPage: React.FC = () => {
   const addWebhookUrl = () => {
     setFormData(prev => ({
       ...prev,
-      webhookUrls: [...prev.webhookUrls, '']
+      webhookUrls: [...prev.webhookUrls, { name: '', url: '' }]
     }));
   };
 
@@ -117,7 +121,7 @@ const WorkspaceEditPage: React.FC = () => {
     setLoading(true);
     try {
       // 빈 웹훅 URL 제거
-      const cleanWebhookUrls = formData.webhookUrls.filter(url => url.trim() !== '');
+      const cleanWebhookUrls = formData.webhookUrls.filter(webhook => webhook.name.trim() !== '' && webhook.url.trim() !== '');
       
       const workspaceData = {
         ...formData,
@@ -131,9 +135,10 @@ const WorkspaceEditPage: React.FC = () => {
         await workspaceAPI.uploadQRImage(Number(workspaceId), qrImage);
       }
 
-      alert('워크스페이스가 수정되었습니다.');
-      navigate('/workspace/selection');
+      alert('워크스페이스가 성공적으로 수정되었습니다.');
+      navigate('/workspace');
     } catch (error: any) {
+      console.error('워크스페이스 수정 중 오류:', error);
       alert(`수정 실패: ${error.message}`);
     } finally {
       setLoading(false);
@@ -199,17 +204,27 @@ const WorkspaceEditPage: React.FC = () => {
               />
             </div>
 
-            {/* 슬랙 웹훅 URL */}
+            {/* 기본 슬랙 웹훅 설정 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">슬랙 웹훅 URL</label>
-              <input
-                type="url"
-                name="slackWebhookUrl"
-                value={formData.slackWebhookUrl}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="https://hooks.slack.com/services/..."
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-2">기본 슬랙 웹훅 설정</label>
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  name="slackWebhookName"
+                  value={formData.slackWebhookName}
+                  onChange={handleInputChange}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="웹훅 이름 (예: 기본 슬랙)"
+                />
+                <input
+                  type="url"
+                  name="slackWebhookUrl"
+                  value={formData.slackWebhookUrl}
+                  onChange={handleInputChange}
+                  className="col-span-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://hooks.slack.com/services/..."
+                />
+              </div>
             </div>
 
             {/* 웹훅 URL들 */}
@@ -218,14 +233,23 @@ const WorkspaceEditPage: React.FC = () => {
                 추가 웹훅 URL
                 <span className="text-sm text-gray-500 ml-2">(선택사항)</span>
               </label>
-              {formData.webhookUrls.map((url, index) => (
+              {formData.webhookUrls.map((webhook, index) => (
                 <div key={index} className="flex gap-2 mb-2">
                   <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => handleWebhookUrlChange(index, e.target.value)}
+                    type="text"
+                    name="name"
+                    value={webhook.name}
+                    onChange={(e) => handleWebhookChange(index, 'name', e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://webhook.example.com/..."
+                    placeholder="웹훅 이름"
+                  />
+                  <input
+                    type="url"
+                    name="url"
+                    value={webhook.url}
+                    onChange={(e) => handleWebhookChange(index, 'url', e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="웹훅 URL"
                   />
                   {formData.webhookUrls.length > 1 && (
                     <button
@@ -244,7 +268,7 @@ const WorkspaceEditPage: React.FC = () => {
                 className="flex items-center gap-2 px-3 py-2 text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50"
               >
                 <Plus className="w-4 h-4" />
-                웹훅 URL 추가
+                웹훅 추가
               </button>
             </div>
 
@@ -349,7 +373,7 @@ const WorkspaceEditPage: React.FC = () => {
             <div className="flex gap-4 justify-end pt-6">
               <button
                 type="button"
-                onClick={() => navigate('/workspace/selection')}
+                onClick={() => navigate('/workspace')}
                 className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
                 취소

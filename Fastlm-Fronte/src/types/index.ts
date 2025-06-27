@@ -13,8 +13,9 @@ export interface Workspace {
   id: number;
   name: string;
   description?: string;
+  slackWebhookName?: string;
   slackWebhookUrl?: string;
-  webhookUrls?: string[];
+  webhookUrls?: { name: string; url: string; }[];
   checkinTime?: string;
   middleTime?: string;
   checkoutTime?: string;

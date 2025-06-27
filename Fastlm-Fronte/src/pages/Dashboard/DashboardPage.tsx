@@ -22,21 +22,13 @@ const DashboardPage: React.FC = () => {
     },
     {
       title: '워크스페이스 관리',
-      description: '워크스페이스와 QR 코드를 관리합니다',
+      description: '워크스페이스를 관리 합니다',
       icon: '🏢',
       links: [
         { name: '워크스페이스 선택', path: '/workspace' },
         ...(selectedWorkspace ? [{ name: '워크스페이스 편집', path: `/workspace/edit/${selectedWorkspace.id}` }] : []),
       ]
     },
-    {
-      title: '설정',
-      description: 'Slack 봇 설정을 관리합니다',
-      icon: '⚙️',
-      links: [
-        { name: 'Slack 봇 설정', path: '/bot-setting' }
-      ]
-    }
   ];
 
   const adminMenuItems = [
@@ -57,8 +49,7 @@ const DashboardPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow">
+      <div className="bg-white shadow">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex items-center justify-between">
               <div>
@@ -89,6 +80,44 @@ const DashboardPage: React.FC = () => {
             </div>
           </div>
         </div>
+      <div className="min-h-screen bg-gray-50">
+        {/* 빠른 액션 - 상단으로 이동 */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+          <div className="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">빠른 액션</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Link
+                to="/notices/schedule"
+                className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                <span className="text-2xl mb-2">📝</span>
+                <span className="text-sm font-medium text-gray-900">공지 예약</span>
+              </Link>
+              <Link
+                to="/notices/customize"
+                className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+              >
+                <span className="text-2xl mb-2">🛠️</span>
+                <span className="text-sm font-medium text-gray-900">공지 커스터마이징</span>
+              </Link>
+              <Link
+                to="/notices/manage"
+                className="flex flex-col items-center p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
+              >
+                <span className="text-2xl mb-2">⚙️</span>
+                <span className="text-sm font-medium text-gray-900">공지 관리</span>
+              </Link>
+              <Link
+                to={`/workspace/edit/${selectedWorkspace?.id}`}
+                className="flex flex-col items-center p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+              >
+                <span className="text-2xl mb-2">🏢</span>
+                <span className="text-sm font-medium text-gray-900">워크스페이스 편집</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+        
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* 메인 기능 카드들 */}
@@ -147,48 +176,6 @@ const DashboardPage: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* 빠른 액션 */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">빠른 액션</h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <Link
-                to="/notices/schedule"
-                className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-              >
-                <span className="text-2xl mb-2">📝</span>
-                <span className="text-sm font-medium text-gray-900">공지 예약</span>
-              </Link>
-              <Link
-                to="/notices/customize"
-                className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-              >
-                <span className="text-2xl mb-2">🛠️</span>
-                <span className="text-sm font-medium text-gray-900">공지 커스터마이징</span>
-              </Link>
-              <Link
-                to="/notices/manage"
-                className="flex flex-col items-center p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
-              >
-                <span className="text-2xl mb-2">⚙️</span>
-                <span className="text-sm font-medium text-gray-900">공지 관리</span>
-              </Link>
-              <Link
-                to="/workspace/register"
-                className="flex flex-col items-center p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-              >
-                <span className="text-2xl mb-2">🏢</span>
-                <span className="text-sm font-medium text-gray-900">워크스페이스 등록</span>
-              </Link>
-              <Link
-                to="/qr"
-                className="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-              >
-                <span className="text-2xl mb-2">📱</span>
-                <span className="text-sm font-medium text-gray-900">QR 관리</span>
-              </Link>
-            </div>
-          </div>
 
           {/* 시스템 정보 */}
           <div className="mt-8 bg-gray-100 rounded-lg p-6">

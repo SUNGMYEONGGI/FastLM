@@ -17,7 +17,8 @@ const AttendanceNoticePage: React.FC = () => {
     zoomId: '',
     zoomPassword: '',
     scheduleUrl: '',
-    noImage: false
+    noImage: false,
+    selectedWebhook: '' // 선택된 웹훅 이름
   });
   const [loading, setLoading] = useState(false);
 
@@ -88,7 +89,8 @@ const AttendanceNoticePage: React.FC = () => {
         status: 'scheduled',
         createdBy: 'current-user', // TODO: 실제 사용자 ID로 교체
         noImage: formData.noImage,
-        formData: formData
+        formData: formData,
+        selectedWebhookUrl: getSelectedWebhookUrl() // 선택된 웹훅 URL 전달
       });
 
       toast.success('출결 공지가 예약되었습니다');
@@ -104,7 +106,8 @@ const AttendanceNoticePage: React.FC = () => {
         zoomId: '',
         zoomPassword: '',
         scheduleUrl: '',
-        noImage: false
+        noImage: false,
+        selectedWebhook: ''
       });
       
     } catch (error) {
@@ -112,6 +115,37 @@ const AttendanceNoticePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getAvailableWebhooks = () => {
+    if (!selectedWorkspace) return [];
+    
+    const webhooks: { name: string; url: string }[] = [];
+    
+    // 기본 슬랙 웹훅
+    if (selectedWorkspace.slackWebhookUrl) {
+      const slackWebhookName = (selectedWorkspace as any).slackWebhookName || '기본 슬랙';
+      webhooks.push({ name: slackWebhookName, url: selectedWorkspace.slackWebhookUrl });
+    }
+    
+    // 추가 웹훅들
+    if (selectedWorkspace.webhookUrls && selectedWorkspace.webhookUrls.length > 0) {
+      selectedWorkspace.webhookUrls.forEach((webhook: any) => {
+        if (typeof webhook === 'object' && webhook.name && webhook.url) {
+          webhooks.push(webhook);
+        } else if (typeof webhook === 'string' && webhook.trim()) {
+          webhooks.push({ name: `웹훅 ${webhooks.length + 1}`, url: webhook });
+        }
+      });
+    }
+    
+    return webhooks;
+  };
+
+  const getSelectedWebhookUrl = () => {
+    const webhooks = getAvailableWebhooks();
+    const selected = webhooks.find(w => w.name === formData.selectedWebhook);
+    return selected?.url || selectedWorkspace?.slackWebhookUrl || '';
   };
 
   if (!selectedWorkspace) {
@@ -202,13 +236,38 @@ const AttendanceNoticePage: React.FC = () => {
                     name="attendanceType"
                     value={formData.attendanceType}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="mt-1 block w-full rounded-md border-gray-300 border px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                  >
+                    <option value="입실">📝 입실</option>
+                    <option value="중간">🕐 중간</option>
+                    <option value="퇴실">🏠 퇴실</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="selectedWebhook" className="block text-sm font-medium text-gray-700">
+                    발송할 웹훅 선택 *
+                  </label>
+                  <select
+                    id="selectedWebhook"
+                    name="selectedWebhook"
+                    value={formData.selectedWebhook}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 border px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
                     required
                   >
-                    <option value="입실">입실</option>
-                    <option value="중간">중간</option>
-                    <option value="퇴실">퇴실</option>
+                    <option value="">웹훅을 선택하세요</option>
+                    {getAvailableWebhooks().map((webhook, index) => (
+                      <option key={index} value={webhook.name}>
+                        {webhook.name}
+                      </option>
+                    ))}
                   </select>
+                  {getAvailableWebhooks().length === 0 && (
+                    <p className="mt-1 text-sm text-red-600">
+                      등록된 웹훅이 없습니다. 워크스페이스 설정에서 웹훅을 등록해주세요.
+                    </p>
+                  )}
                 </div>
 
                 <div>
