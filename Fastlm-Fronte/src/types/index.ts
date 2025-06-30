@@ -74,12 +74,22 @@ export interface Notice {
   title: string;
   message: string;
   workspaceId: string;
+  workspaceName?: string;
   scheduledAt: string;
   status: 'scheduled' | 'sent' | 'failed';
   createdBy: string;
+  createdByName?: string;
+  sentAt?: string;
+  errorMessage?: string;
   noImage?: boolean;
   formData?: Record<string, any>;
   variableData?: Record<string, any>;
+  selectedWebhookUrl?: string;
+  webhookInfo?: {
+    name: string;
+    url: string;
+  };
+  createdAt?: string;
 }
 
 export interface ZoomExitRecord {

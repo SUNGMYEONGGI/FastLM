@@ -26,7 +26,7 @@ import ScheduledJobsPage from './pages/Admin/ScheduledJobsPage';
 import WorkspaceApprovalPage from './pages/Admin/WorkspaceApprovalPage';
 
 // Notice Pages
-import CustomNoticePage from './pages/Notices/CustomNoticePage';
+import AttendanceNoticePage from './pages/Notices/AttendanceNoticePage';
 import NoticeCustomizePage from './pages/Notices/NoticeCustomizePage';
 import NoticeManagementPage from './pages/Notices/NoticeManagementPage';
 import NoticeCalendarPage from './pages/Notices/NoticeCalendarPage';
@@ -85,9 +85,9 @@ function App() {
               } />
               
               {/* Notice Routes */}
-              <Route path="/notices/schedule" element={
+              <Route path="/notices/attendance" element={
                 <ProtectedRoute>
-                  <CustomNoticePage />
+                  <AttendanceNoticePage />
                 </ProtectedRoute>
               } />
               

@@ -14,7 +14,7 @@ const DashboardPage: React.FC = () => {
       description: '공지 예약, 커스터마이징, 관리를 수행합니다',
       icon: '📢',
       links: [
-        { name: '공지 예약', path: '/notices/schedule' },
+        { name: '공지 예약', path: '/notices/attendance' },
         { name: '공지 커스터마이징', path: '/notices/customize' },
         { name: '공지 관리', path: '/notices/manage' },
         { name: '공지 캘린더', path: '/notices/calendar' }
@@ -87,7 +87,7 @@ const DashboardPage: React.FC = () => {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">빠른 액션</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Link
-                to="/notices/schedule"
+                to="/notices/attendance"
                 className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
               >
                 <span className="text-2xl mb-2">📝</span>

@@ -8,6 +8,7 @@ import os
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 import json
+import re
 
 app = Flask(__name__)
 
@@ -775,6 +776,21 @@ def upload_workspace_qr_image(workspace_id):
         if file.filename == '':
             return jsonify({'message': '파일이 선택되지 않았습니다.'}), 400
         
+        # 파일 크기 제한 검사 (5MB)
+        MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+        file.seek(0, 2)  # 파일 끝으로 이동
+        file_size = file.tell()  # 현재 위치(파일 크기) 확인
+        file.seek(0)  # 파일 처음으로 되돌리기
+        
+        if file_size > MAX_FILE_SIZE:
+            return jsonify({'message': '파일 크기는 5MB를 초과할 수 없습니다.'}), 400
+        
+        # MIME 타입 검증
+        allowed_mime_types = {'image/png', 'image/jpeg', 'image/jpg', 'image/gif'}
+        if file.content_type not in allowed_mime_types:
+            return jsonify({'message': '지원되지 않는 파일 형식입니다. PNG, JPEG, JPG, GIF 파일만 허용됩니다.'}), 400
+        
+        # 파일 확장자 검증 (추가 보안)
         if file and file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
             # 파일명을 워크스페이스 ID로 고유하게 생성
             file_extension = file.filename.rsplit('.', 1)[1].lower()
@@ -798,7 +814,7 @@ def upload_workspace_qr_image(workspace_id):
                 'qrImageUrl': qr_url
             })
         else:
-            return jsonify({'message': '지원되지 않는 파일 형식입니다.'}), 400
+            return jsonify({'message': '지원되지 않는 파일 형식입니다. PNG, JPEG, JPG, GIF 파일만 허용됩니다.'}), 400
             
     except Exception as e:
         print(f"QR 이미지 업로드 오류: {str(e)}")
@@ -938,6 +954,25 @@ def create_notice():
     current_user_id = int(get_jwt_identity())
     data = request.get_json()
     
+    # 워크스페이스 조회 및 웹훅 URL 검증
+    workspace = db.session.get(Workspace, data['workspaceId'])
+    if not workspace:
+        return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+    
+    # 웹훅 URL 검증
+    selected_webhook_url = data.get('selectedWebhookUrl')
+    
+    # 웹훅 URL이 비어있거나 유효하지 않은 경우 체크
+    invalid_webhook_values = [None, '', 'null', 'undefined', '웹훅을 선택하세요', 'select-webhook']
+    if (not selected_webhook_url or 
+        selected_webhook_url in invalid_webhook_values or 
+        selected_webhook_url.strip() == ''):
+        selected_webhook_url = None
+    
+    # 선택된 웹훅이 없고 워크스페이스 기본 웹훅도 없으면 오류
+    if not selected_webhook_url and not workspace.slack_webhook_url:
+        return jsonify({'message': '공지사항을 전송할 웹훅을 선택해주세요.'}), 400
+    
     notice = Notice(
         type=data['type'],
         category_id=data.get('categoryId'),
@@ -950,7 +985,7 @@ def create_notice():
         no_image=data.get('noImage', False),
         form_data=json.dumps(data.get('formData', {})),
         variable_data=json.dumps(data.get('variableData', {})),
-        selected_webhook_url=data.get('selectedWebhookUrl')  # 선택된 웹훅 URL 저장
+        selected_webhook_url=selected_webhook_url  # 선택된 웹훅 URL 저장
     )
     
     db.session.add(notice)
@@ -977,6 +1012,7 @@ def create_notice():
         id=job_id
     )
     
+    
     return jsonify({'message': '공지사항이 예약되었습니다.', 'id': notice.id}), 201
 
 @app.route('/api/notices', methods=['GET'])
@@ -992,19 +1028,385 @@ def get_notices():
         user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
         notices = Notice.query.filter(Notice.workspace_id.in_(user_workspace_ids)).all()
     
-    return jsonify([{
-        'id': notice.id,
-        'type': notice.type,
-        'title': notice.title,
-        'message': notice.message,
-        'workspaceId': notice.workspace_id,
-        'createdBy': notice.created_by,
-        'scheduledAt': notice.scheduled_at.isoformat(),
-        'status': notice.status,
-        'createdAt': notice.created_at.isoformat()
-    } for notice in notices])
+    result = []
+    for notice in notices:
+        workspace = db.session.get(Workspace, notice.workspace_id)
+        creator = db.session.get(User, notice.created_by)
+        
+        # 웹훅 정보 구성
+        webhook_info = None
+        if notice.selected_webhook_url:
+            # 워크스페이스의 웹훅 목록에서 매칭되는 웹훅 찾기
+            if workspace and workspace.webhook_urls:
+                try:
+                    webhook_list = json.loads(workspace.webhook_urls)
+                    for webhook in webhook_list:
+                        if webhook.get('url') == notice.selected_webhook_url:
+                            webhook_info = {
+                                'name': webhook.get('name', '알 수 없음'),
+                                'url': webhook.get('url')
+                            }
+                            break
+                except:
+                    pass
+            
+            # 매칭되는 웹훅이 없으면 기본 정보
+            if not webhook_info:
+                webhook_info = {
+                    'name': '사용자 지정 웹훅',
+                    'url': notice.selected_webhook_url
+                }
+        elif workspace and workspace.slack_webhook_url:
+            webhook_info = {
+                'name': workspace.slack_webhook_name or '기본 슬랙',
+                'url': workspace.slack_webhook_url
+            }
+        
+        result.append({
+            'id': notice.id,
+            'type': notice.type,
+            'title': notice.title,
+            'message': notice.message,
+            'workspaceId': notice.workspace_id,
+            'workspaceName': workspace.name if workspace else '알 수 없음',
+            'createdBy': notice.created_by,
+            'createdByName': creator.name if creator else '알 수 없음',
+            'scheduledAt': notice.scheduled_at.isoformat(),
+            'status': notice.status,
+            'sentAt': notice.sent_at.isoformat() if notice.sent_at else None,
+            'errorMessage': notice.error_message,
+            'noImage': notice.no_image,
+            'selectedWebhookUrl': notice.selected_webhook_url,
+            'webhookInfo': webhook_info,
+            'createdAt': notice.created_at.isoformat()
+        })
+    
+    return jsonify(result)
 
-# 공지 전송 함수
+# 공지사항 즉시 전송 API
+@app.route('/api/notices/<int:notice_id>/send', methods=['POST'])
+@jwt_required()
+def send_notice_now(notice_id):
+    notice = None
+    try:
+        print(f"공지사항 즉시 전송 요청 - ID: {notice_id}")
+        current_user_id = int(get_jwt_identity())
+        print(f"현재 사용자 ID: {current_user_id}")
+        
+        # 공지사항 조회
+        notice = db.session.get(Notice, notice_id)
+        if not notice:
+            print(f"공지사항을 찾을 수 없음: {notice_id}")
+            return jsonify({'message': '공지사항을 찾을 수 없습니다.'}), 404
+        
+        print(f"공지사항 발견: {notice.title}, 상태: {notice.status}")
+        
+        # 권한 체크 (생성자이거나 관리자)
+        current_user = db.session.get(User, current_user_id)
+        if not current_user.is_admin and notice.created_by != current_user_id:
+            print(f"권한 없음 - 관리자: {current_user.is_admin}, 생성자: {notice.created_by}, 현재사용자: {current_user_id}")
+            return jsonify({'message': '권한이 없습니다.'}), 403
+        
+        # 이미 전송된 공지사항인지 확인
+        if notice.status == 'sent':
+            print("이미 전송된 공지사항")
+            return jsonify({'message': '이미 전송된 공지사항입니다.'}), 400
+        
+        # 워크스페이스 조회
+        workspace = db.session.get(Workspace, notice.workspace_id)
+        if not workspace:
+            print(f"워크스페이스를 찾을 수 없음: {notice.workspace_id}")
+            return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+        
+        print(f"워크스페이스 발견: {workspace.name}")
+        
+        # 웹훅 URL 확인
+        webhook_url = notice.selected_webhook_url or workspace.slack_webhook_url
+        print(f"웹훅 URL: {webhook_url}")
+        if not webhook_url:
+            print("웹훅 URL이 설정되지 않음")
+            return jsonify({'message': '발송할 웹훅 URL이 설정되지 않았습니다.'}), 400
+        
+        # Slack 메시지 구성
+        # 메시지 내용 정리 (과도한 개행 제거)
+        cleaned_message = notice.message.strip()
+        # 연속된 개행을 하나로 축소
+        cleaned_message = re.sub(r'\n\s*\n', '\n\n', cleaned_message)
+        
+        # 단순한 텍스트 메시지로 전송 (블록 구조 오류 방지)
+        slack_data = {
+            "text": f"*{notice.title}*\n\n{cleaned_message}"
+        }
+        
+        # QR 이미지 추가 (no_image가 False인 경우)
+        if not notice.no_image and workspace.qr_image_url:
+            # QR 이미지는 별도 블록으로 추가 (localhost URL 문제로 인해 임시로 제거)
+            # 실제 배포시에는 공개적으로 접근 가능한 URL을 사용해야 함
+            print(f"QR 이미지 URL: {workspace.qr_image_url} (localhost로 인해 Slack에서 접근 불가)")
+            # slack_data["blocks"].append({
+            #     "type": "image",
+            #     "image_url": qr_image_url,
+            #     "alt_text": "QR Code"
+            # })
+        
+        print(f"Slack 메시지 데이터: {slack_data}")
+        
+        # Slack으로 전송
+        print("Slack으로 전송 시작...")
+        response = requests.post(webhook_url, json=slack_data)
+        print(f"Slack 응답 상태: {response.status_code}")
+        print(f"Slack 응답 내용: {response.text}")
+        response.raise_for_status()
+        
+        # 성공 처리
+        notice.status = 'sent'
+        notice.sent_at = datetime.utcnow()
+        
+        # 관련 스케줄드 작업도 완료 처리
+        scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+        if scheduled_job:
+            scheduled_job.status = 'completed'
+            scheduled_job.executed_at = datetime.utcnow()
+        
+        db.session.commit()
+        print("전송 성공 및 DB 업데이트 완료")
+        
+        return jsonify({
+            'message': '공지사항이 성공적으로 전송되었습니다.',
+            'status': 'sent',
+            'sentAt': notice.sent_at.isoformat()
+        })
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Slack 전송 실패: {str(e)}")
+        # Slack 전송 실패
+        if notice:
+            notice.status = 'failed'
+            notice.error_message = f"Slack 전송 실패: {str(e)}"
+            
+            scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+            if scheduled_job:
+                scheduled_job.status = 'failed'
+                scheduled_job.executed_at = datetime.utcnow()
+                scheduled_job.error_message = str(e)
+            
+            db.session.commit()
+        return jsonify({'message': f'공지사항 전송에 실패했습니다: {str(e)}'}), 500
+        
+    except Exception as e:
+        print(f"서버 오류: {str(e)}")
+        print(f"오류 타입: {type(e)}")
+        import traceback
+        print(f"스택 트레이스: {traceback.format_exc()}")
+        db.session.rollback()
+        return jsonify({'message': f'서버 오류가 발생했습니다: {str(e)}'}), 500
+
+# 공지사항 수정 API
+@app.route('/api/notices/<int:notice_id>', methods=['PUT'])
+@jwt_required()
+def update_notice(notice_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        # 공지사항 조회
+        notice = db.session.get(Notice, notice_id)
+        if not notice:
+            return jsonify({'message': '공지사항을 찾을 수 없습니다.'}), 404
+        
+        # 권한 체크 (생성자이거나 관리자)
+        current_user = db.session.get(User, current_user_id)
+        if not current_user.is_admin and notice.created_by != current_user_id:
+            return jsonify({'message': '권한이 없습니다.'}), 403
+        
+        # 이미 전송된 공지사항은 수정 불가
+        if notice.status == 'sent':
+            return jsonify({'message': '이미 전송된 공지사항은 수정할 수 없습니다.'}), 400
+        
+        # 워크스페이스 조회 및 웹훅 URL 검증
+        if 'workspaceId' in data:
+            workspace = db.session.get(Workspace, data['workspaceId'])
+            if not workspace:
+                return jsonify({'message': '워크스페이스를 찾을 수 없습니다.'}), 404
+        else:
+            workspace = db.session.get(Workspace, notice.workspace_id)
+        
+        # 웹훅 URL 검증
+        if 'selectedWebhookUrl' in data:
+            selected_webhook_url = data['selectedWebhookUrl']
+            
+            # 웹훅 URL이 비어있거나 유효하지 않은 경우 체크
+            invalid_webhook_values = [None, '', 'null', 'undefined', '웹훅을 선택하세요', 'select-webhook']
+            if (not selected_webhook_url or 
+                selected_webhook_url in invalid_webhook_values or 
+                selected_webhook_url.strip() == ''):
+                selected_webhook_url = None
+            
+            # 선택된 웹훅이 없고 워크스페이스 기본 웹훅도 없으면 오류
+            if not selected_webhook_url and not workspace.slack_webhook_url:
+                return jsonify({'message': '공지사항을 전송할 웹훅을 선택해주세요.'}), 400
+        
+        # 스케줄러 작업 업데이트가 필요한지 확인
+        scheduled_at_changed = False
+        if 'scheduledAt' in data:
+            new_scheduled_at = datetime.fromisoformat(data['scheduledAt'].replace('Z', '+00:00'))
+            if notice.scheduled_at != new_scheduled_at:
+                scheduled_at_changed = True
+        
+        # 공지사항 정보 업데이트
+        if 'type' in data:
+            notice.type = data['type']
+        if 'categoryId' in data:
+            notice.category_id = data['categoryId']
+        if 'templateId' in data:
+            notice.template_id = data['templateId']
+        if 'title' in data:
+            notice.title = data['title']
+        if 'message' in data:
+            notice.message = data['message']
+        if 'workspaceId' in data:
+            notice.workspace_id = data['workspaceId']
+        if 'scheduledAt' in data:
+            notice.scheduled_at = datetime.fromisoformat(data['scheduledAt'].replace('Z', '+00:00'))
+        if 'noImage' in data:
+            notice.no_image = data['noImage']
+        if 'selectedWebhookUrl' in data:
+            notice.selected_webhook_url = data['selectedWebhookUrl']
+        if 'formData' in data:
+            notice.form_data = json.dumps(data['formData'])
+        if 'variableData' in data:
+            notice.variable_data = json.dumps(data['variableData'])
+        
+        # 스케줄러 작업 업데이트
+        if scheduled_at_changed:
+            scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+            if scheduled_job:
+                # 기존 스케줄러 작업 제거
+                try:
+                    scheduler.remove_job(scheduled_job.job_id)
+                except:
+                    pass
+                
+                # 새로운 스케줄러 작업 추가
+                new_job_id = f"notice_{notice.id}_{datetime.now().timestamp()}"
+                scheduled_job.job_id = new_job_id
+                scheduled_job.scheduled_at = notice.scheduled_at
+                
+                scheduler.add_job(
+                    func=send_notice,
+                    trigger="date",
+                    run_date=notice.scheduled_at,
+                    args=[notice.id],
+                    id=new_job_id
+                )
+        
+        db.session.commit()
+        
+        return jsonify({'message': '공지사항이 수정되었습니다.', 'id': notice.id})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'서버 오류가 발생했습니다: {str(e)}'}), 500
+
+# 공지사항 삭제 API (단일)
+@app.route('/api/notices/<int:notice_id>', methods=['DELETE'])
+@jwt_required()
+def delete_notice(notice_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        
+        # 공지사항 조회
+        notice = db.session.get(Notice, notice_id)
+        if not notice:
+            return jsonify({'message': '공지사항을 찾을 수 없습니다.'}), 404
+        
+        # 권한 체크 (생성자이거나 관리자)
+        current_user = db.session.get(User, current_user_id)
+        if not current_user.is_admin and notice.created_by != current_user_id:
+            return jsonify({'message': '권한이 없습니다.'}), 403
+        
+        # 스케줄러 작업 제거
+        scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+        if scheduled_job:
+            try:
+                scheduler.remove_job(scheduled_job.job_id)
+            except:
+                pass
+            db.session.delete(scheduled_job)
+        
+        # 공지사항 삭제
+        db.session.delete(notice)
+        db.session.commit()
+        
+        return jsonify({'message': '공지사항이 삭제되었습니다.'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'서버 오류가 발생했습니다: {str(e)}'}), 500
+
+# 공지사항 일괄 삭제 API
+@app.route('/api/notices/bulk-delete', methods=['DELETE'])
+@jwt_required()
+def bulk_delete_notices():
+    try:
+        current_user_id = int(get_jwt_identity())
+        data = request.get_json()
+        notice_ids = data.get('noticeIds', [])
+        
+        if not notice_ids:
+            return jsonify({'message': '삭제할 공지사항을 선택해주세요.'}), 400
+        
+        current_user = db.session.get(User, current_user_id)
+        deleted_count = 0
+        failed_notices = []
+        
+        for notice_id in notice_ids:
+            try:
+                # 공지사항 조회
+                notice = db.session.get(Notice, notice_id)
+                if not notice:
+                    failed_notices.append({'id': notice_id, 'reason': '공지사항을 찾을 수 없습니다.'})
+                    continue
+                
+                # 권한 체크 (생성자이거나 관리자)
+                if not current_user.is_admin and notice.created_by != current_user_id:
+                    failed_notices.append({'id': notice_id, 'reason': '권한이 없습니다.'})
+                    continue
+                
+                # 스케줄러 작업 제거
+                scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+                if scheduled_job:
+                    try:
+                        scheduler.remove_job(scheduled_job.job_id)
+                    except:
+                        pass
+                    db.session.delete(scheduled_job)
+                
+                # 공지사항 삭제
+                db.session.delete(notice)
+                deleted_count += 1
+                
+            except Exception as e:
+                failed_notices.append({'id': notice_id, 'reason': f'삭제 중 오류 발생: {str(e)}'})
+        
+        db.session.commit()
+        
+        result = {
+            'message': f'{deleted_count}개의 공지사항이 삭제되었습니다.',
+            'deletedCount': deleted_count,
+            'totalCount': len(notice_ids)
+        }
+        
+        if failed_notices:
+            result['failedNotices'] = failed_notices
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'서버 오류가 발생했습니다: {str(e)}'}), 500
+
+# 스케줄러용 공지 전송 함수
 def send_notice(notice_id):
     with app.app_context():
         notice = db.session.get(Notice, notice_id)
@@ -1023,26 +1425,26 @@ def send_notice(notice_id):
                 raise Exception("발송할 웹훅 URL이 설정되지 않았습니다.")
             
             # Slack 메시지 구성
+            # 메시지 내용 정리 (과도한 개행 제거)
+            cleaned_message = notice.message.strip()
+            # 연속된 개행을 하나로 축소
+            cleaned_message = re.sub(r'\n\s*\n', '\n\n', cleaned_message)
+            
+            # 단순한 텍스트 메시지로 전송 (블록 구조 오류 방지)
             slack_data = {
-                "text": notice.title,
-                "blocks": [
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": notice.message
-                        }
-                    }
-                ]
+                "text": f"*{notice.title}*\n\n{cleaned_message}"
             }
             
             # QR 이미지 추가 (no_image가 False인 경우)
             if not notice.no_image and workspace.qr_image_url:
-                slack_data["blocks"].append({
-                    "type": "image",
-                    "image_url": workspace.qr_image_url,
-                    "alt_text": "QR Code"
-                })
+                # QR 이미지는 별도 블록으로 추가 (localhost URL 문제로 인해 임시로 제거)
+                # 실제 배포시에는 공개적으로 접근 가능한 URL을 사용해야 함
+                print(f"QR 이미지 URL: {workspace.qr_image_url} (localhost로 인해 Slack에서 접근 불가)")
+                # slack_data["blocks"].append({
+                #     "type": "image",
+                #     "image_url": qr_image_url,
+                #     "alt_text": "QR Code"
+                # })
             
             # 선택된 웹훅으로 전송
             response = requests.post(webhook_url, json=slack_data)
@@ -1134,7 +1536,6 @@ def init_default_categories():
 @app.route('/api/template-categories', methods=['GET'])
 @jwt_required()
 def get_template_categories():
-    current_user_id = int(get_jwt_identity())
     workspace_id = request.args.get('workspaceId')
     
     if workspace_id:
@@ -1161,7 +1562,6 @@ def get_template_categories():
 @app.route('/api/template-categories', methods=['POST'])
 @jwt_required()
 def create_template_category():
-    current_user_id = int(get_jwt_identity())
     data = request.get_json()
     
     category = NoticeCategory(
@@ -1251,7 +1651,6 @@ def delete_template_category(category_id):
 @app.route('/api/notice-templates', methods=['GET'])
 @jwt_required()
 def get_notice_templates():
-    current_user_id = int(get_jwt_identity())
     workspace_id = request.args.get('workspaceId')
     category_id = request.args.get('categoryId')
     
@@ -1282,8 +1681,6 @@ def get_notice_templates():
 @app.route('/api/notice-templates/<int:template_id>', methods=['GET'])
 @jwt_required()
 def get_notice_template(template_id):
-    current_user_id = int(get_jwt_identity())
-    
     template = db.session.get(NoticeTemplate, template_id)
     if not template:
         return jsonify({'message': '템플릿을 찾을 수 없습니다.'}), 404
@@ -1463,6 +1860,85 @@ def preview_template(template_id):
         'title': title,
         'content': content
     })
+
+# 공지사항 상세 조회 API
+@app.route('/api/notices/<int:notice_id>', methods=['GET'])
+@jwt_required()
+def get_notice_detail(notice_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = db.session.get(User, current_user_id)
+        
+        # 공지사항 조회
+        notice = db.session.get(Notice, notice_id)
+        if not notice:
+            return jsonify({'message': '공지사항을 찾을 수 없습니다.'}), 404
+        
+        # 권한 체크 (관리자이거나 해당 워크스페이스에 접근 권한이 있는 사용자)
+        if not current_user.is_admin:
+            user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
+            if notice.workspace_id not in user_workspace_ids:
+                return jsonify({'message': '권한이 없습니다.'}), 403
+        
+        workspace = db.session.get(Workspace, notice.workspace_id)
+        creator = db.session.get(User, notice.created_by)
+        
+        # 웹훅 정보 구성
+        webhook_info = None
+        if notice.selected_webhook_url:
+            # 워크스페이스의 웹훅 목록에서 매칭되는 웹훅 찾기
+            if workspace and workspace.webhook_urls:
+                try:
+                    webhook_list = json.loads(workspace.webhook_urls)
+                    for webhook in webhook_list:
+                        if webhook.get('url') == notice.selected_webhook_url:
+                            webhook_info = {
+                                'name': webhook.get('name', '알 수 없음'),
+                                'url': webhook.get('url')
+                            }
+                            break
+                except:
+                    pass
+            
+            # 매칭되는 웹훅이 없으면 기본 정보
+            if not webhook_info:
+                webhook_info = {
+                    'name': '사용자 지정 웹훅',
+                    'url': notice.selected_webhook_url
+                }
+        elif workspace and workspace.slack_webhook_url:
+            webhook_info = {
+                'name': workspace.slack_webhook_name or '기본 슬랙',
+                'url': workspace.slack_webhook_url
+            }
+        
+        result = {
+            'id': notice.id,
+            'type': notice.type,
+            'categoryId': notice.category_id,
+            'templateId': notice.template_id,
+            'title': notice.title,
+            'message': notice.message,
+            'workspaceId': notice.workspace_id,
+            'workspaceName': workspace.name if workspace else '알 수 없음',
+            'createdBy': notice.created_by,
+            'createdByName': creator.name if creator else '알 수 없음',
+            'scheduledAt': notice.scheduled_at.isoformat(),
+            'status': notice.status,
+            'sentAt': notice.sent_at.isoformat() if notice.sent_at else None,
+            'errorMessage': notice.error_message,
+            'noImage': notice.no_image,
+            'formData': json.loads(notice.form_data) if notice.form_data else {},
+            'variableData': json.loads(notice.variable_data) if notice.variable_data else {},
+            'selectedWebhookUrl': notice.selected_webhook_url,
+            'webhookInfo': webhook_info,
+            'createdAt': notice.created_at.isoformat()
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'message': f'서버 오류가 발생했습니다: {str(e)}'}), 500
 
 if __name__ == '__main__':
     init_db()

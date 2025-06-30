@@ -363,34 +363,22 @@ const NoticeCustomizePage: React.FC = () => {
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* 탭 네비게이션 */}
-          <div className="bg-white rounded-lg shadow-sm mb-6">
-            <div className="border-b border-gray-200">
-              <nav className="flex space-x-8 px-6">
-                <Link
-                  to="/notices/schedule"
-                  className="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                >
-                  공지 예약
-                </Link>
-                <Link
-                  to="/notices/customize"
-                  className="py-4 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600"
-                >
-                  공지 커스터마이징
-                </Link>
-                <Link
-                  to="/notices/manage"
-                  className="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                >
-                  공지 관리
-                </Link>
-                <Link
-                  to="/notices/calendar"
-                  className="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                >
-                  공지 캘린더
-                </Link>
-              </nav>
+          <div className="bg-white shadow rounded-lg mb-6">
+            <div className="flex border-b border-gray-200 overflow-x-auto">
+              <Link to="/notices/attendance" className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap">공지 예약</Link>
+              <Link to="/notices/customize" className="px-6 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 whitespace-nowrap">공지 커스터마이징</Link>
+              <Link to="/notices/manage" className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap">공지 관리</Link>
+              <Link to="/notices/calendar" className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap">공지 캘린더</Link>
+            </div>
+          </div>
+
+          {/* 페이지 헤더 */}
+          <div className="bg-white shadow rounded-lg mb-6">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h1 className="text-2xl font-bold text-gray-900">공지 커스터마이징</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                워크스페이스: {selectedWorkspace?.name} - 공지사항 템플릿을 생성하고 편집할 수 있습니다.
+              </p>
             </div>
           </div>
 

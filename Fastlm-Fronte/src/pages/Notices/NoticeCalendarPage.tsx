@@ -1,24 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Layout from '../../components/Layout/Layout';
+import { WorkspaceContext } from '../../contexts/WorkspaceContext';
 import { Notice } from '../../types';
 import { noticeAPI } from '../../services/api';
 
 const NoticeCalendarPage: React.FC = () => {
+  const { selectedWorkspace } = useContext(WorkspaceContext);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
 
   useEffect(() => {
-    loadNotices();
-  }, []);
+    if (selectedWorkspace) {
+      loadNotices();
+    }
+  }, [selectedWorkspace]);
 
   const loadNotices = async () => {
     try {
       setLoading(true);
       const data = await noticeAPI.getAllNotices();
-      setNotices(data);
+      // 선택된 워크스페이스의 공지만 필터링
+      const filteredData = selectedWorkspace 
+        ? data.filter(notice => notice.workspaceId === selectedWorkspace.id)
+        : data;
+      setNotices(filteredData);
     } catch (error) {
       toast.error('공지사항을 불러오는데 실패했습니다');
     } finally {
@@ -75,6 +83,23 @@ const NoticeCalendarPage: React.FC = () => {
   const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
+  if (!selectedWorkspace) {
+    return (
+      <Layout>
+        <div className="min-h-screen bg-gray-50 py-8">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-white shadow rounded-lg p-6">
+              <p className="text-gray-500">워크스페이스를 먼저 선택해주세요.</p>
+              <Link to="/workspace" className="text-blue-600 hover:text-blue-500 mt-2 inline-block">
+                워크스페이스 선택하기
+              </Link>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   if (loading) {
     return (
       <Layout>
@@ -96,7 +121,7 @@ const NoticeCalendarPage: React.FC = () => {
           {/* 탭 네비게이션 */}
           <div className="bg-white shadow rounded-lg mb-6">
             <div className="flex border-b border-gray-200 overflow-x-auto">
-              <Link to="/notices/schedule" className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap">공지 예약</Link>
+              <Link to="/notices/attendance" className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap">공지 예약</Link>
               <Link to="/notices/customize" className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap">공지 커스터마이징</Link>
               <Link to="/notices/manage" className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap">공지 관리</Link>
               <Link to="/notices/calendar" className="px-6 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 whitespace-nowrap">공지 캘린더</Link>
@@ -106,7 +131,12 @@ const NoticeCalendarPage: React.FC = () => {
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-900">공지 캘린더</h1>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">공지 캘린더</h1>
+                  <p className="text-sm text-gray-600 mt-1">
+                    워크스페이스: {selectedWorkspace?.name} - 예약된 공지사항을 달력 형태로 확인할 수 있습니다.
+                  </p>
+                </div>
                 <div className="flex items-center space-x-4">
                   <button
                     onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}

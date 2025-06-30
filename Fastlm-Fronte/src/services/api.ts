@@ -335,6 +335,16 @@ export const noticeAPI = {
     if (!response.ok) throw new Error('Failed to delete notice');
   },
 
+  async bulkDeleteNotices(noticeIds: string[]): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/notices/bulk-delete`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ noticeIds })
+    });
+    
+    if (!response.ok) throw new Error('Failed to bulk delete notices');
+  },
+
   async sendNoticeImmediately(noticeId: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/notices/${noticeId}/send`, {
       method: 'POST',
