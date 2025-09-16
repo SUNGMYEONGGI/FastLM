@@ -1,0 +1,55 @@
+services:
+  backend:
+    build:
+      context: ./FastLM-Backend
+      dockerfile: Dockerfile
+    container_name: fastlm-backend
+    restart: always
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-jwt-secret-string-change-this-in-production}
+      - SQLALCHEMY_DATABASE_URI=sqlite:///fastlm.db
+    volumes:
+      - backend_data:/app/instance
+      - backend_static:/app/static
+    networks:
+      - fastlm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./Fastlm-Fronte
+      dockerfile: Dockerfile
+    container_name: fastlm-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+    networks:
+      - fastlm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost", "-k"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  backend_data:
+    driver: local
+  backend_static:
+    driver: local
+
+networks:
+  fastlm-network:
+    driver: bridge

@@ -81,7 +81,7 @@ const WorkspaceSelectionPage: React.FC = () => {
                   🔧 관리자 권한으로 워크스페이스를 생성하거나 관리할 수 있습니다.
                 </p>
                 <button
-                  onClick={() => navigate('/admin/workspace/register')}
+                  onClick={() => navigate('/workspace/register')}
                   className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors"
                 >
                   <Plus className="w-5 h-5 mr-2" />
@@ -164,7 +164,7 @@ const WorkspaceSelectionPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 text-center">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">관리자 옵션</h3>
             <button
-              onClick={() => navigate('/admin/workspace/register')}
+              onClick={() => navigate('workspace/register')}
               className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-5 h-5 mr-2" />

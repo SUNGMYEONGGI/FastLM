@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Layout from '../../components/Layout/Layout';
+import MarkdownEditor from '../../components/Editor/MarkdownEditor';
 import { Notice } from '../../types';
 import { noticeAPI } from '../../services/api';
 
@@ -179,10 +180,9 @@ const NoticeManagementPage: React.FC = () => {
                       <td className="px-6 py-4">
                         {editingNotice === notice.id ? (
                           <div className="space-y-2">
-                            <textarea
+                            <MarkdownEditor
                               value={editForm.message}
-                              onChange={(e) => setEditForm(prev => ({ ...prev, message: e.target.value }))}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                              onChange={(value) => setEditForm(prev => ({ ...prev, message: value }))}
                               rows={3}
                             />
                             <input

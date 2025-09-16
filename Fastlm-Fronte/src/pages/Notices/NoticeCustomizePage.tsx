@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Layout from '../../components/Layout/Layout';
+import MarkdownEditor from '../../components/Editor/MarkdownEditor';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { templateCategoryAPI, noticeTemplateAPI } from '../../services/api';
 import { NoticeCategory, NoticeTemplate, TemplateVariable, WORKSPACE_VARIABLES } from '../../types';
@@ -514,13 +515,11 @@ const NoticeCustomizePage: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         공지 내용
                       </label>
-                      <textarea
-                        id="template-content"
+                      <MarkdownEditor
                         value={templateData.content}
-                        onChange={(e) => setTemplateData(prev => ({ ...prev, content: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        rows={12}
+                        onChange={(value) => setTemplateData(prev => ({ ...prev, content: value }))}
                         placeholder="공지 내용을 입력하세요. Slack 마크다운을 사용할 수 있습니다."
+                        rows={20}
                       />
                     </div>
 
@@ -595,21 +594,6 @@ const NoticeCustomizePage: React.FC = () => {
                         </div>
                       )}
                     </div>
-
-                    {/* 마크다운 가이드 */}
-                    <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                      <p className="text-sm font-medium text-blue-800 mb-2">Slack 마크다운 가이드</p>
-                      <div className="text-xs text-blue-700 space-y-1">
-                        <p><code>**굵게**</code> → <strong>굵게</strong></p>
-                        <p><code>*기울임*</code> → <em>기울임</em></p>
-                        <p><code>`코드`</code> → <code>코드</code></p>
-                        <p><code>&gt; 인용문</code> → 인용문 블록</p>
-                        <p><code>- 목록</code> → 불릿 리스트</p>
-                        <p><code>1. 번호 목록</code> → 번호 리스트</p>
-                        <p><code>&lt;URL|링크텍스트&gt;</code> → 클릭 가능한 링크 </p>
-                        <p><code>https://example.com</code> → 자동 링크 변환</p>
-                      </div>
-                    </div>
                   </div>
 
                   {/* 미리보기 영역 */}
@@ -621,8 +605,8 @@ const NoticeCustomizePage: React.FC = () => {
                       <div className="mb-4">
                         <p className="text-sm font-medium text-gray-700 mb-2">변수값 설정</p>
                         <div className="space-y-2">
-                          {templateData.variables.map((variable, index) => (
-                            variable.key && (
+                          {templateData.variables.map((variable, index) => 
+                            variable.key ? (
                               <div key={index}>
                                 <label className="block text-xs text-gray-600">
                                   {variable.label || variable.key}
@@ -638,8 +622,8 @@ const NoticeCustomizePage: React.FC = () => {
                                   placeholder={variable.example || '값을 입력하세요'}
                                 />
                               </div>
-                            )
-                          ))}
+                            ) : null
+                          )}
                         </div>
                       </div>
                     )}
@@ -649,20 +633,18 @@ const NoticeCustomizePage: React.FC = () => {
                       {previewTitle && (
                         <div className="mb-3">
                           <p className="text-sm font-medium text-gray-600 mb-1">제목:</p>
-                          <div 
-                            className="font-semibold text-gray-900"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(previewTitle) }}
-                          />
+                          <div className="font-semibold text-gray-900">
+                            {previewTitle}
+                          </div>
                         </div>
                       )}
                       
                       {previewContent && (
                         <div>
                           <p className="text-sm font-medium text-gray-600 mb-1">내용:</p>
-                          <div 
-                            className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(previewContent) }}
-                          />
+                          <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                            {previewContent}
+                          </div>
                         </div>
                       )}
                       
@@ -697,4 +679,4 @@ const NoticeCustomizePage: React.FC = () => {
   );
 };
 
-export default NoticeCustomizePage; 
+export default NoticeCustomizePage;

@@ -8,15 +8,17 @@ import os
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 import json
+import re
 
 app = Flask(__name__)
 
 # 설정
-app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fastlm.db'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI', 'sqlite:///fastlm.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'jwt-secret-string-change-this-in-production'
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-string-change-this-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB
 
 # 확장 초기화
 db = SQLAlchemy(app)
@@ -627,15 +629,18 @@ def approve_workspace(workspace_id):
 def get_workspace_detail(workspace_id):
     try:
         current_user_id = int(get_jwt_identity())
+        current_user = db.session.get(User, current_user_id)
         
-        # 사용자가 해당 워크스페이스에 접근 권한이 있는지 확인
-        user_workspace = UserWorkspace.query.filter_by(
-            user_id=current_user_id,
-            workspace_id=workspace_id
-        ).first()
-        
-        if not user_workspace:
-            return jsonify({'message': '워크스페이스에 접근 권한이 없습니다.'}), 403
+        # 관리자인 경우 모든 워크스페이스에 접근 가능
+        if not current_user.is_admin:
+            # 일반 사용자는 해당 워크스페이스에 접근 권한이 있는지 확인
+            user_workspace = UserWorkspace.query.filter_by(
+                user_id=current_user_id,
+                workspace_id=workspace_id
+            ).first()
+            
+            if not user_workspace:
+                return jsonify({'message': '워크스페이스에 접근 권한이 없습니다.'}), 403
         
         workspace = db.session.get(Workspace, workspace_id)
         if not workspace:
@@ -1004,6 +1009,216 @@ def get_notices():
         'createdAt': notice.created_at.isoformat()
     } for notice in notices])
 
+# 공지 통계 API
+@app.route('/api/notices/statistics', methods=['GET'])
+@jwt_required()
+def get_notice_statistics():
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    
+    if current_user.is_admin:
+        # 관리자는 모든 공지 통계 조회
+        total_notices = Notice.query.count()
+        sent_notices = Notice.query.filter_by(status='sent').count()
+        scheduled_notices = Notice.query.filter_by(status='scheduled').count()
+        failed_notices = Notice.query.filter_by(status='failed').count()
+    else:
+        # 일반 사용자는 접근 가능한 워크스페이스의 공지만 조회
+        user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
+        total_notices = Notice.query.filter(Notice.workspace_id.in_(user_workspace_ids)).count()
+        sent_notices = Notice.query.filter(Notice.workspace_id.in_(user_workspace_ids), Notice.status == 'sent').count()
+        scheduled_notices = Notice.query.filter(Notice.workspace_id.in_(user_workspace_ids), Notice.status == 'scheduled').count()
+        failed_notices = Notice.query.filter(Notice.workspace_id.in_(user_workspace_ids), Notice.status == 'failed').count()
+    
+    return jsonify({
+        'total': total_notices,
+        'sent': sent_notices,
+        'scheduled': scheduled_notices,
+        'failed': failed_notices
+    })
+
+# 금주 예약목록 API
+@app.route('/api/notices/weekly', methods=['GET'])
+@jwt_required()
+def get_weekly_notices():
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    
+    # 이번 주 시작일과 끝일 계산
+    today = datetime.utcnow().date()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    start_datetime = datetime.combine(start_of_week, datetime.min.time())
+    end_datetime = datetime.combine(end_of_week, datetime.max.time())
+    
+    if current_user.is_admin:
+        # 관리자는 모든 공지 조회
+        notices = Notice.query.filter(
+            Notice.scheduled_at >= start_datetime,
+            Notice.scheduled_at <= end_datetime
+        ).order_by(Notice.scheduled_at).all()
+    else:
+        # 일반 사용자는 접근 가능한 워크스페이스의 공지만 조회
+        user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
+        notices = Notice.query.filter(
+            Notice.workspace_id.in_(user_workspace_ids),
+            Notice.scheduled_at >= start_datetime,
+            Notice.scheduled_at <= end_datetime
+        ).order_by(Notice.scheduled_at).all()
+    
+    return jsonify([{
+        'id': notice.id,
+        'title': notice.title,
+        'scheduledAt': notice.scheduled_at.isoformat(),
+        'status': notice.status,
+        'type': notice.type
+    } for notice in notices])
+
+# 공지 수정 API
+@app.route('/api/notices/<int:notice_id>', methods=['PUT'])
+@jwt_required()
+def update_notice(notice_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    data = request.get_json()
+    
+    notice = db.session.get(Notice, notice_id)
+    if not notice:
+        return jsonify({'message': '공지사항을 찾을 수 없습니다.'}), 404
+    
+    # 권한 확인 (관리자이거나 작성자인 경우만 수정 가능)
+    if not current_user.is_admin and notice.created_by != current_user_id:
+        # 사용자가 해당 워크스페이스에 접근 권한이 있는지 확인
+        user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
+        if notice.workspace_id not in user_workspace_ids:
+            return jsonify({'message': '수정 권한이 없습니다.'}), 403
+    
+    try:
+        # 공지 정보 업데이트
+        if 'message' in data:
+            notice.message = data['message']
+        if 'scheduledAt' in data:
+            notice.scheduled_at = datetime.fromisoformat(data['scheduledAt'].replace('Z', '+00:00'))
+            
+            # 스케줄링된 작업도 업데이트
+            scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+            if scheduled_job:
+                # 기존 스케줄러 작업 제거
+                try:
+                    scheduler.remove_job(scheduled_job.job_id)
+                except:
+                    pass  # 작업이 이미 실행되었거나 없는 경우 무시
+                
+                # 새로운 작업 등록
+                new_job_id = f"notice_{notice_id}_{datetime.now().timestamp()}"
+                scheduled_job.job_id = new_job_id
+                scheduled_job.scheduled_at = notice.scheduled_at
+                
+                scheduler.add_job(
+                    func=send_notice,
+                    trigger="date",
+                    run_date=notice.scheduled_at,
+                    args=[notice_id],
+                    id=new_job_id
+                )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'id': notice.id,
+            'type': notice.type,
+            'title': notice.title,
+            'message': notice.message,
+            'workspaceId': notice.workspace_id,
+            'createdBy': notice.created_by,
+            'scheduledAt': notice.scheduled_at.isoformat(),
+            'status': notice.status,
+            'createdAt': notice.created_at.isoformat()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'공지사항 수정 중 오류가 발생했습니다: {str(e)}'}), 500
+
+# 공지 삭제 API
+@app.route('/api/notices/<int:notice_id>', methods=['DELETE'])
+@jwt_required()
+def delete_notice(notice_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    
+    notice = db.session.get(Notice, notice_id)
+    if not notice:
+        return jsonify({'message': '공지사항을 찾을 수 없습니다.'}), 404
+    
+    # 권한 확인 (관리자이거나 작성자인 경우만 삭제 가능)
+    if not current_user.is_admin and notice.created_by != current_user_id:
+        # 사용자가 해당 워크스페이스에 접근 권한이 있는지 확인
+        user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
+        if notice.workspace_id not in user_workspace_ids:
+            return jsonify({'message': '삭제 권한이 없습니다.'}), 403
+    
+    try:
+        # 스케줄된 작업 제거
+        scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+        if scheduled_job:
+            try:
+                scheduler.remove_job(scheduled_job.job_id)
+            except:
+                pass  # 작업이 이미 실행되었거나 없는 경우 무시
+            db.session.delete(scheduled_job)
+        
+        # 공지사항 삭제
+        db.session.delete(notice)
+        db.session.commit()
+        
+        return jsonify({'message': '공지사항이 삭제되었습니다.'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'공지사항 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
+
+# 공지 즉시 전송 API
+@app.route('/api/notices/<int:notice_id>/send', methods=['POST'])
+@jwt_required()
+def send_notice_immediately(notice_id):
+    current_user_id = int(get_jwt_identity())
+    current_user = db.session.get(User, current_user_id)
+    
+    notice = db.session.get(Notice, notice_id)
+    if not notice:
+        return jsonify({'message': '공지사항을 찾을 수 없습니다.'}), 404
+    
+    # 권한 확인 (관리자이거나 해당 워크스페이스에 접근 권한이 있는 경우)
+    if not current_user.is_admin:
+        user_workspace_ids = [uw.workspace_id for uw in current_user.user_workspaces]
+        if notice.workspace_id not in user_workspace_ids:
+            return jsonify({'message': '전송 권한이 없습니다.'}), 403
+    
+    # 이미 전송된 공지인지 확인
+    if notice.status == 'sent':
+        return jsonify({'message': '이미 전송된 공지사항입니다.'}), 400
+    
+    try:
+        # 즉시 전송 실행
+        send_notice(notice_id)
+        
+        # 스케줄된 작업 제거 (이미 전송했으므로)
+        scheduled_job = ScheduledJob.query.filter_by(notice_id=notice_id).first()
+        if scheduled_job:
+            try:
+                scheduler.remove_job(scheduled_job.job_id)
+            except:
+                pass  # 작업이 이미 실행되었거나 없는 경우 무시
+            db.session.delete(scheduled_job)
+            db.session.commit()
+        
+        return jsonify({'message': '공지사항이 즉시 전송되었습니다.'}), 200
+        
+    except Exception as e:
+        return jsonify({'message': f'공지사항 전송 중 오류가 발생했습니다: {str(e)}'}), 500
+
 # 공지 전송 함수
 def send_notice(notice_id):
     with app.app_context():
@@ -1022,6 +1237,17 @@ def send_notice(notice_id):
             if not webhook_url:
                 raise Exception("발송할 웹훅 URL이 설정되지 않았습니다.")
             
+            # 슬랙 마크다운으로 변환
+            def convert_to_slack_markdown(text):
+                # *볼드체* -> *볼드체* (Slack 볼드체, 그대로 유지)
+                # _기울임체_ -> _기울임체_ (Slack 기울임체, 그대로 유지)
+                # `코드` -> `코드` (동일)
+                # ~~취소선~~ -> ~취소선~
+                text = re.sub(r'~~(.*?)~~', r'~\1~', text)
+                return text
+            
+            formatted_message = convert_to_slack_markdown(notice.message)
+            
             # Slack 메시지 구성
             slack_data = {
                 "text": notice.title,
@@ -1030,10 +1256,12 @@ def send_notice(notice_id):
                         "type": "section",
                         "text": {
                             "type": "mrkdwn",
-                            "text": notice.message
+                            "text": formatted_message
                         }
                     }
-                ]
+                ],
+                "unfurl_links": False,
+                "unfurl_media": False
             }
             
             # QR 이미지 추가 (no_image가 False인 경우)
@@ -1463,6 +1691,11 @@ def preview_template(template_id):
         'title': title,
         'content': content
     })
+
+# 헬스 체크 엔드포인트
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
 if __name__ == '__main__':
     init_db()

@@ -63,15 +63,17 @@ const Sidebar: React.FC = () => {
     { to: '/notices/customize', icon: Settings, label: '공지 커스터마이징' },
     { to: '/notices/manage', icon: Calendar, label: '공지 관리' },
     { to: '/notices/calendar', icon: Calendar, label: '공지 캘린더' },
-    { to: '/bot-setting', icon: Bot, label: '봇 설정' },
-    { to: '/zoom/exit-records', icon: Clock, label: 'Zoom 퇴실 기록' },
+    // { to: '/bot-setting', icon: Bot, label: '봇 설정' },
+    // { to: '/zoom/exit-records', icon: Clock, label: 'Zoom 퇴실 기록' },
   ];
 
   // 외부 링크 메뉴
   const externalLinks = [
-    { url: 'https://docs.google.com/document/d/1abc123/edit', icon: ExternalLink, label: '사용자 가이드' },
-    { url: 'https://slack.com/workspace/settings', icon: ExternalLink, label: 'Slack Bot 설정' },
-    { url: 'https://github.com/fastlm/fastlm', icon: ExternalLink, label: 'GitHub' }
+    { url: 'https://basalt-spectacles-374.notion.site/32355cea6e30410d958f5ca4fb47086d?source=copy_link', icon: ExternalLink, label: 'Slack 설정 가이드' },
+    { url: 'https://api.slack.com/apps', icon: ExternalLink, label: 'Slack API 사이트' },
+    { url: 'https://basalt-spectacles-374.notion.site/25f6ae0e408e80c693efc1d12e26fffb?source=copy_link', icon: ExternalLink, label: '워크스페이스 등록 가이드' },
+    { url: 'https://join.slack.com/t/test-e4g7469/shared_invite/zt-2y1ej7son-io~XJ96ytGFlEnYp8spnuw', icon: ExternalLink, label: '테스트 워크스페이스' },
+    { url: 'https://github.com/SUNGMYEONGGI/FastLM', icon: ExternalLink, label: 'GitHub' }
   ];
 
   const adminNavItems = [
@@ -229,7 +231,7 @@ const Sidebar: React.FC = () => {
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors group"
+                  className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors group"
                 >
                   <div className="flex items-center">
                     <item.icon className="w-5 h-5 mr-3" />
